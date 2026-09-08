@@ -1,0 +1,169 @@
+/* ==========================================================================
+   UyirKappan Emergency Operations Center (EOC) - Design System
+   Hospital Dashboard Module 3
+   ========================================================================== */
+
+:root {
+  /* Surface & Background Colors */
+  --bg-primary: #0a0e17;
+  --bg-secondary: #0f172a;
+  --bg-card: #131d31;
+  --bg-card-hover: #192640;
+  --bg-input: #1a253c;
+  --bg-elevated: #1e293b;
+
+  /* Border & Divider Colors */
+  --border-subtle: #1e293b;
+  --border-default: #2a3754;
+  --border-focus: #38bdf8;
+
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #0f172a;
+
+  /* Semantic Emergency Colors */
+  --status-critical: #ef4444;
+  --status-critical-bg: rgba(239, 68, 68, 0.12);
+  --status-critical-border: rgba(239, 68, 68, 0.35);
+
+  --status-warning: #f59e0b;
+  --status-warning-bg: rgba(245, 158, 11, 0.12);
+  --status-warning-border: rgba(245, 158, 11, 0.35);
+
+  --status-success: #10b981;
+  --status-success-bg: rgba(16, 185, 129, 0.12);
+  --status-success-border: rgba(16, 185, 129, 0.35);
+
+  --status-info: #0ea5e9;
+  --status-info-bg: rgba(14, 165, 233, 0.12);
+  --status-info-border: rgba(14, 165, 233, 0.35);
+
+  --status-purple: #a855f7;
+  --status-purple-bg: rgba(168, 85, 247, 0.12);
+  --status-purple-border: rgba(168, 85, 247, 0.35);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  /* Transitions & Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.45), 0 4px 6px -4px rgba(0, 0, 0, 0.45);
+  --shadow-glow-red: 0 0 15px rgba(239, 68, 68, 0.3);
+  --shadow-glow-green: 0 0 15px rgba(16, 185, 129, 0.3);
+  --shadow-glow-blue: 0 0 15px rgba(14, 165, 233, 0.3);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+}
+
+/* Tabular figures for operational timestamps and ETAs */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Focus Accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Common Operational Animations */
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes ping-slow {
+  0% { transform: scale(1); opacity: 0.8; }
+  80%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes flash-urgent {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.4); }
+  50% { border-color: rgba(239, 68, 68, 0.9); box-shadow: var(--shadow-glow-red); }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ping-slow {
+  animation: ping-slow 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-flash-urgent {
+  animation: flash-urgent 2s ease-in-out infinite;
+}
+
+/* Interactive Utility Helpers */
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input, select, textarea {
+  font-family: inherit;
+}
