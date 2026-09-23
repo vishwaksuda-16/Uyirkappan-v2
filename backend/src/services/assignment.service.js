@@ -21,7 +21,7 @@ class AssignmentService {
     const assignment = await this.store.getAssignmentById(assignmentId);
     if (!assignment) return { ok: false, error: 'NOT_FOUND', message: 'Assignment not found' };
     const ambulance = await this.store.getAmbulanceById(assignment.ambulanceId);
-    if (!ambulance || ambulance.driverId !== driver.id) {
+    if (!ambulance || (driver.role !== 'ADMIN' && ambulance.driverId !== driver.id && driver.ambulanceId !== ambulance.id)) {
       return { ok: false, error: 'FORBIDDEN', message: 'This assignment is not for you' };
     }
 
@@ -59,7 +59,7 @@ class AssignmentService {
     const assignment = await this.store.getAssignmentById(assignmentId);
     if (!assignment) return { ok: false, error: 'NOT_FOUND', message: 'Assignment not found' };
     const ambulance = await this.store.getAmbulanceById(assignment.ambulanceId);
-    if (!ambulance || ambulance.driverId !== driver.id) {
+    if (!ambulance || (driver.role !== 'ADMIN' && ambulance.driverId !== driver.id && driver.ambulanceId !== ambulance.id)) {
       return { ok: false, error: 'FORBIDDEN', message: 'This assignment is not for you' };
     }
 
@@ -85,7 +85,7 @@ class AssignmentService {
     }
 
     const ambulance = await this.store.getAmbulanceById(assignment.ambulanceId);
-    if (!ambulance || ambulance.driverId !== driver.id) {
+    if (!ambulance || (driver.role !== 'ADMIN' && ambulance.driverId !== driver.id && driver.ambulanceId !== ambulance.id)) {
       return { ok: false, error: 'FORBIDDEN', message: 'This assignment is not for you' };
     }
 
@@ -139,6 +139,64 @@ class AssignmentService {
         this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'AMBULANCE_ARRIVED', {
           requestId: request.requestId, ambulanceId: ambulance.id,
         });
+      }
+
+      // Journey 2: Dynamically calculate patient -> hospital route
+      if (nextStatus === 'EN_ROUTE_TO_HOSPITAL' || nextStatus === 'PATIENT_ONBOARD') {
+        try {
+          const { getMatcherServices } = require('../matcher/index');
+          const matcher = getMatcherServices();
+          const hospital = await this.store.getHospitalById(request.destinationHospitalId);
+          if (matcher && hospital && ambulance.currentLocation) {
+            let multiRoutes;
+            if (typeof matcher.dijkstraService.findDynamicMultiRoutes === 'function') {
+              multiRoutes = matcher.dijkstraService.findDynamicMultiRoutes(ambulance.currentLocation, hospital.location);
+            } else {
+              const startNode = matcher.nearestNodeService.findNearestNode(ambulance.currentLocation);
+              const endNode = matcher.nearestNodeService.findNearestNode(hospital.location);
+              multiRoutes = matcher.dijkstraService.findMultiRoutes(startNode.nodeId, endNode.nodeId);
+            }
+            const primary = multiRoutes.primaryRoute;
+            const newEta = Math.max(1, Math.round(primary.travelTimeMinutes));
+            
+            await this.store.updateEmergencyETA(request.requestId, newEta);
+            request.route = primary;
+            request.alternativeRoutes = multiRoutes.alternativeRoutes || [];
+            if (assignment) {
+              assignment.route = primary;
+              assignment.alternativeRoutes = multiRoutes.alternativeRoutes || [];
+            }
+            
+            const routePayload = {
+              requestId: request.requestId,
+              phase: 'EN_ROUTE_TO_HOSPITAL',
+              route: primary,
+              alternativeRoutes: multiRoutes.alternativeRoutes || [],
+              destinationHospital: hospital,
+              etaMinutes: newEta,
+              cost: primary.cost,
+              score: primary.score,
+              selectionReason: multiRoutes.selectionReason,
+              alternativeReason: multiRoutes.alternativeReason,
+            };
+
+            this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'ROUTE_UPDATED', routePayload);
+            this.notificationService.emitToRoom(`driver:${ambulance.id}`, 'ROUTE_UPDATED', routePayload);
+            if (ambulance.driverId) {
+              this.notificationService.emitToRoom(`user:${ambulance.driverId}`, 'ROUTE_UPDATED', routePayload);
+            }
+            if (hospital?.id) {
+              this.notificationService.emitToRoom(`hospital:${hospital.id}`, 'ROUTE_UPDATED', routePayload);
+            }
+            this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'ETA_UPDATED', {
+              requestId: request.requestId,
+              etaMinutes: newEta,
+            });
+            log('info', `Journey 2: Recalculated patient -> hospital route for ${request.requestId} to ${hospital.name} (ETA: ${newEta}m)`);
+          }
+        } catch (err) {
+          log('warn', `Failed to recalculate hospital route: ${err.message}`);
+        }
       }
     }
 

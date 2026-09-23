@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UyirKappan — Road Network Node Map</title>
+  <meta name="description" content="Interactive visualization of the UyirKappan ambulance dispatch road network showing 70 nodes and 182 road segments across Chennai">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0e1a; color: #e0e6f0; overflow: hidden; }
+
+    #map { width: 100vw; height: 100vh; z-index: 1; }
+
+    /* Glass panel styling */
+    .glass-panel {
+      background: rgba(15, 20, 40, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Header bar */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, rgba(10, 14, 30, 0.95), rgba(20, 30, 60, 0.95));
+      border-bottom: 1px solid rgba(100, 140, 255, 0.2);
+      backdrop-filter: blur(20px);
+    }
+    #header h1 {
+      font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+    #header .stats {
+      display: flex; gap: 20px; font-size: 13px; color: #94a3b8;
+    }
+    #header .stats .stat-value {
+      font-weight: 700; color: #60a5fa; margin-right: 4px;
+    }
+    .nav-links { display: flex; gap: 8px; }
+    .nav-links a {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+      text-decoration: none; color: #94a3b8; transition: all 0.2s;
+      border: 1px solid rgba(100, 140, 255, 0.1);
+    }
+    .nav-links a:hover { color: #60a5fa; border-color: rgba(100, 140, 255, 0.3); background: rgba(96, 165, 250, 0.08); }
+    .nav-links a.active { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+    /* Controls panel */
+    #controls {
+      position: fixed; top: 70px; left: 16px; z-index: 1000;
+      width: 320px; padding: 20px;
+    }
+    #controls h2 { font-size: 14px; font-weight: 600; color: #a78bfa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .control-group { margin-bottom: 16px; }
+    .control-group label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; font-weight: 500; }
+    .control-group select, .control-group input {
+      width: 100%; padding: 8px 12px; background: rgba(30, 40, 70, 0.8); border: 1px solid rgba(100, 140, 255, 0.2);
+      border-radius: 8px; color: #e0e6f0; font-size: 13px; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.2s;
+    }
+    .control-group select:focus, .control-group input:focus { border-color: #60a5fa; }
+    .btn {
+      padding: 10px 18px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.25s; font-family: 'Inter', sans-serif; width: 100%;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+    .btn-secondary {
+      background: rgba(30, 40, 70, 0.6); color: #94a3b8; border: 1px solid rgba(100, 140, 255, 0.15);
+      margin-top: 8px;
+    }
+    .btn-secondary:hover { color: #60a5fa; border-color: rgba(100, 140, 255, 0.3); }
+
+    /* Route info panel */
+    #route-info {
+      position: fixed; bottom: 16px; left: 16px; right: 16px; z-index: 1000;
+      padding: 20px; display: none; max-width: 800px; margin: 0 auto;
+    }
+    #route-info.visible { display: block; animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .route-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .route-header h3 { font-size: 15px; font-weight: 600; color: #e0e6f0; }
+    .route-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 18px; padding: 4px; }
+    .route-close:hover { color: #f472b6; }
+    .route-metrics { display: flex; gap: 24px; flex-wrap: wrap; }
+    .route-metric { text-align: center; }
+    .route-metric .value { font-size: 24px; font-weight: 800; }
+    .route-metric .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .metric-primary .value { color: #34d399; }
+    .metric-baseline .value { color: #f87171; }
+    .metric-improvement .value { color: #fbbf24; }
+    .route-path { margin-top: 12px; font-size: 12px; color: #94a3b8; line-height: 1.6; }
+    .route-path .node { 
+      display: inline-block; padding: 2px 8px; border-radius: 4px; margin: 2px;
+      font-weight: 600; font-size: 11px;
+    }
+    .route-path .node-h { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .route-path .node-a { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+
+    /* Legend */
+    #legend {
+      position: fixed; top: 70px; right: 16px; z-index: 1000;
+      width: 240px; padding: 16px;
+    }
+    #legend h3 { font-size: 12px; font-weight: 600; color: #a78bfa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; color: #94a3b8; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .legend-line { width: 24px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+    /* Loading overlay */
+    #loading {
+      position: fixed; inset: 0; z-index: 2000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(10, 14, 26, 0.95); backdrop-filter: blur(10px);
+    }
+    #loading.hidden { display: none; }
+    .spinner {
+      width: 48px; height: 48px; border: 3px solid rgba(100, 140, 255, 0.15);
+      border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { margin-top: 16px; font-size: 14px; color: #64748b; }
+
+    /* Custom Leaflet popup */
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 20, 40, 0.95) !important;
+      border: 1px solid rgba(100, 140, 255, 0.2) !important;
+      border-radius: 12px !important;
+      color: #e0e6f0 !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+    }
+    .leaflet-popup-tip { background: rgba(15, 20, 40, 0.95) !important; }
+    .leaflet-popup-content { font-family: 'Inter', sans-serif !important; font-size: 12px !important; }
+    .popup-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; color: #60a5fa; }
+    .popup-row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .popup-label { color: #64748b; }
+    .popup-value { font-weight: 600; color: #e0e6f0; }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading Chennai Road Network…</p>
+  </div>
+
+  <div id="header">
+    <h1>🚑 UyirKappan — Road Network Graph</h1>
+    <div class="stats">
+      <span><span class="stat-value" id="stat-nodes">0</span>Nodes</span>
+      <span><span class="stat-value" id="stat-edges">0</span>Edges</span>
+      <span><span class="stat-value" id="stat-traffic">—</span>Traffic</span>
+    </div>
+    <div class="nav-links">
+      <a href="/network-map.html" class="active">Network</a>
+      <a href="/comparison-dashboard.html">Comparison</a>
+      <a href="/traffic-visualization.html">Traffic</a>
+    </div>
+  </div>
+
+  <div id="controls" class="glass-panel">
+    <h2>Route Finder</h2>
+    <div class="control-group">
+      <label>From Node</label>
+      <select id="from-node"><option value="">Loading…</option></select>
+    </div>
+    <div class="control-group">
+      <label>To Node</label>
+      <select id="to-node"><option value="">Loading…</option></select>
+    </div>
+    <button class="btn btn-primary" onclick="findRoute()">🔍 Find Shortest Path</button>
+    <button class="btn btn-secondary" onclick="clearRoute()">✕ Clear Route</button>
+
+    <div style="margin-top: 20px;">
+      <h2>Layer Toggles</h2>
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer; margin-bottom: 8px;">
+        <input type="checkbox" id="toggle-edges" checked onchange="toggleEdges()"> Show Road Segments
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer; margin-bottom: 8px;">
+        <input type="checkbox" id="toggle-centerlines" checked onchange="toggleCenterlines()"> Show Actual Road Centerlines
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer; margin-bottom: 8px;">
+        <input type="checkbox" id="toggle-labels" checked onchange="toggleLabels()"> Show Node Labels
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; cursor: pointer;">
+        <input type="checkbox" id="toggle-weights" onchange="toggleWeights()"> Show Edge Weights
+      </label>
+    </div>
+  </div>
+
+  <div id="legend" class="glass-panel">
+    <h3>Legend</h3>
+    <div class="legend-item"><div class="legend-dot" style="background: #3b82f6;"></div>Hospital Node (H001–H030)</div>
+    <div class="legend-item"><div class="legend-dot" style="background: #f87171;"></div>Ambulance Base (A001–A040)</div>
+    <div class="legend-item"><div class="legend-line" style="background: #f59e0b;"></div>Arterial Road</div>
+    <div class="legend-item"><div class="legend-line" style="background: #fbbf24;"></div>Collector Road</div>
+    <div class="legend-item"><div class="legend-line" style="background: #64748b;"></div>Local Road</div>
+    <div class="legend-item"><div class="legend-line" style="background: #34d399; height: 4px;"></div>Optimized Route</div>
+    <div class="legend-item"><div class="legend-line" style="background: #f87171; height: 2px; border-style: dashed;"></div>Baseline Route</div>
+    <div class="legend-item">
+      <span style="font-size: 16px;">→</span> One-way Segment
+    </div>
+  </div>
+
+  <div id="route-info" class="glass-panel">
+    <div class="route-header">
+      <h3 id="route-title">Route Details</h3>
+      <button class="route-close" onclick="clearRoute()">✕</button>
+    </div>
+    <div class="route-metrics" id="route-metrics"></div>
+    <div class="route-path" id="route-path"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ── State ──
+    let graphData = null;
+    let map = null;
+    let nodeMarkers = new Map();
+    let labelMarkers = [];
+    let edgeLines = [];
+    let centerlineLines = [];
+    let weightLabels = [];
+    let routeLines = [];
+    let showEdges = true, showLabels = true, showWeights = false;
+    let selectedFrom = null, selectedTo = null;
+
+    // ── Initialize Map ──
+    map = L.map('map', {
+      center: [13.05, 80.22],
+      zoom: 12,
+      zoomControl: false,
+      attributionControl: false,
+    });
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+    }).addTo(map);
+
+    // ── Edge colors ──
+    const roadColors = { arterial: '#f59e0b', collector: '#fbbf24', local: '#475569' };
+    const roadWidths = { arterial: 3, collector: 2, local: 1.5 };
+
+    // ── Load Data ──
+    async function loadGraph() {
+      try {
+        const res = await fetch('/api/network/graph');
+        graphData = await res.json();
+        renderGraph();
+        await loadCenterlines();
+        populateSelectors();
+        document.getElementById('stat-nodes').textContent = graphData.nodeCount;
+        document.getElementById('stat-edges').textContent = graphData.edgeCount;
+        document.getElementById('stat-traffic').textContent = graphData.currentTraffic.state;
+        document.getElementById('loading').classList.add('hidden');
+      } catch (err) {
+        console.error('Failed to load graph:', err);
+        document.querySelector('#loading p').textContent = 'Failed to load network data. Is the backend running?';
+      }
+    }
+
+    // Load only the KML road lines visible around the current viewport. The
+    // lines are geographic context; the colored graph above remains the
+    // explicitly labelled routing model used for Dijkstra traversal.
+    async function loadCenterlines() {
+      const bounds = map.getBounds();
+      const query = new URLSearchParams({
+        minLat: bounds.getSouth(), maxLat: bounds.getNorth(),
+        minLng: bounds.getWest(), maxLng: bounds.getEast(), limit: 4000,
+      });
+      try {
+        const response = await fetch(`/api/network/road-geometry?${query}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Road geometry unavailable');
+        centerlineLines.forEach(line => map.removeLayer(line));
+        centerlineLines = data.roads.map((road) => L.polyline(
+          road.coordinates.map(([lng, lat]) => [lat, lng]),
+          { color: '#334155', weight: 1, opacity: 0.42, interactive: false }
+        ).addTo(map));
+      } catch (error) {
+        console.warn('Road centerlines were not loaded:', error.message);
+      }
+    }
+
+    // ── Render Graph ──
+    function renderGraph() {
+      // Draw edges
+      const seenEdges = new Set();
+      for (const edge of graphData.edges) {
+        const fromNode = graphData.nodes.find(n => n.nodeId === edge.fromNodeId);
+        const toNode = graphData.nodes.find(n => n.nodeId === edge.toNodeId);
+        if (!fromNode || !toNode) continue;
+
+        const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join('-');
+        if (seenEdges.has(edgeKey)) continue;
+        seenEdges.add(edgeKey);
+
+        const color = roadColors[edge.roadType] || roadColors.local;
+        const weight = roadWidths[edge.roadType] || 1.5;
+        const opacity = edge.roadType === 'arterial' ? 0.7 : (edge.roadType === 'collector' ? 0.5 : 0.3);
+
+        const line = L.polyline(
+          [[fromNode.latitude, fromNode.longitude], [toNode.latitude, toNode.longitude]],
+          { color, weight, opacity, dashArray: edge.oneWay ? '8 4' : null }
+        ).addTo(map);
+
+        line.bindPopup(`
+          <div class="popup-title">${edge.fromNodeId} → ${edge.toNodeId}</div>
+          <div class="popup-row"><span class="popup-label">Road Type</span><span class="popup-value">${edge.roadType}</span></div>
+          <div class="popup-row"><span class="popup-label">Distance</span><span class="popup-value">${edge.distanceKm} km</span></div>
+          <div class="popup-row"><span class="popup-label">Speed Limit</span><span class="popup-value">${edge.speedLimitKmph} km/h</span></div>
+          <div class="popup-row"><span class="popup-label">Base Travel Time</span><span class="popup-value">${edge.travelTimeMinutes.toFixed(1)} min</span></div>
+          <div class="popup-row"><span class="popup-label">Traffic State</span><span class="popup-value">${edge.trafficState}</span></div>
+          <div class="popup-row"><span class="popup-label">Traffic Multiplier</span><span class="popup-value">${edge.trafficMultiplier.toFixed(2)}×</span></div>
+          <div class="popup-row"><span class="popup-label">Adj. Travel Time</span><span class="popup-value">${edge.adjustedTravelTime.toFixed(1)} min</span></div>
+          <div class="popup-row"><span class="popup-label">One-way</span><span class="popup-value">${edge.oneWay ? 'Yes' : 'No'}</span></div>
+        `);
+
+        edgeLines.push(line);
+
+        // Edge weight label (hidden by default)
+        const midLat = (fromNode.latitude + toNode.latitude) / 2;
+        const midLng = (fromNode.longitude + toNode.longitude) / 2;
+        const weightLabel = L.marker([midLat, midLng], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="font-size:9px;color:#94a3b8;background:rgba(10,14,26,0.8);padding:1px 4px;border-radius:3px;white-space:nowrap;">${edge.distanceKm}km</div>`,
+            iconSize: null,
+          }),
+          interactive: false,
+        });
+        weightLabels.push(weightLabel);
+      }
+
+      // Draw nodes
+      for (const node of graphData.nodes) {
+        const isHospital = node.type === 'Hospital';
+        const color = isHospital ? '#3b82f6' : '#f87171';
+        const radius = isHospital ? 8 : 6;
+        const fillOpacity = isHospital ? 0.9 : 0.8;
+
+        const marker = L.circleMarker([node.latitude, node.longitude], {
+          radius,
+          fillColor: color,
+          color: 'rgba(255,255,255,0.3)',
+          weight: 1.5,
+          fillOpacity,
+        }).addTo(map);
+
+        marker.bindPopup(`
+          <div class="popup-title">${node.nodeId}</div>
+          <div style="margin-bottom:6px;font-size:13px;">${node.name}</div>
+          <div class="popup-row"><span class="popup-label">Type</span><span class="popup-value">${node.type}</span></div>
+          <div class="popup-row"><span class="popup-label">Lat</span><span class="popup-value">${node.latitude.toFixed(4)}</span></div>
+          <div class="popup-row"><span class="popup-label">Lng</span><span class="popup-value">${node.longitude.toFixed(4)}</span></div>
+        `);
+
+        // Click to select for routing
+        marker.on('click', () => {
+          if (!selectedFrom) {
+            document.getElementById('from-node').value = node.nodeId;
+            selectedFrom = node.nodeId;
+          } else if (!selectedTo) {
+            document.getElementById('to-node').value = node.nodeId;
+            selectedTo = node.nodeId;
+            findRoute();
+          }
+        });
+
+        nodeMarkers.set(node.nodeId, marker);
+
+        // Node label
+        const label = L.marker([node.latitude, node.longitude], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="font-size:10px;font-weight:600;color:${color};text-shadow:0 0 4px rgba(0,0,0,0.8);white-space:nowrap;transform:translate(12px,-8px);">${node.nodeId}</div>`,
+            iconSize: null,
+          }),
+          interactive: false,
+        }).addTo(map);
+        labelMarkers.push(label);
+      }
+    }
+
+    // ── Populate dropdowns ──
+    function populateSelectors() {
+      const fromSelect = document.getElementById('from-node');
+      const toSelect = document.getElementById('to-node');
+      fromSelect.innerHTML = '<option value="">— Select Source Node —</option>';
+      toSelect.innerHTML = '<option value="">— Select Destination Node —</option>';
+
+      const hospitals = graphData.nodes.filter(n => n.type === 'Hospital').sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+      const bases = graphData.nodes.filter(n => n.type === 'Ambulance Base').sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+
+      const addOptions = (select) => {
+        const hGroup = document.createElement('optgroup');
+        hGroup.label = '🏥 Hospitals';
+        for (const h of hospitals) {
+          const opt = document.createElement('option');
+          opt.value = h.nodeId;
+          opt.textContent = `${h.nodeId} — ${h.name}`;
+          hGroup.appendChild(opt);
+        }
+        select.appendChild(hGroup);
+
+        const aGroup = document.createElement('optgroup');
+        aGroup.label = '🚑 Ambulance Bases';
+        for (const b of bases) {
+          const opt = document.createElement('option');
+          opt.value = b.nodeId;
+          opt.textContent = `${b.nodeId} — ${b.name}`;
+          aGroup.appendChild(opt);
+        }
+        select.appendChild(aGroup);
+      };
+
+      addOptions(fromSelect);
+      addOptions(toSelect);
+    }
+
+    // ── Find Route ──
+    async function findRoute() {
+      const from = document.getElementById('from-node').value;
+      const to = document.getElementById('to-node').value;
+      if (!from || !to) return alert('Select both source and destination nodes');
+      if (from === to) return alert('Source and destination must be different');
+
+      clearRouteLines();
+
+      try {
+        const res = await fetch(`/api/network/route?from=${from}&to=${to}`);
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+
+        const primary = data.primaryRoute;
+        const baseline = data.baselineRoute;
+
+        // Draw baseline route (red dashed)
+        if (baseline && baseline.waypoints) {
+          const baselineCoords = baseline.waypoints.map(w => [w.latitude, w.longitude]);
+          const baselineLine = L.polyline(baselineCoords, {
+            color: '#f87171', weight: 4, opacity: 0.6, dashArray: '12 8',
+          }).addTo(map);
+          routeLines.push(baselineLine);
+        }
+
+        // Draw alternative routes (purple)
+        for (const alt of (data.alternativeRoutes || [])) {
+          if (alt.waypoints) {
+            const altCoords = alt.waypoints.map(w => [w.latitude, w.longitude]);
+            const altLine = L.polyline(altCoords, {
+              color: '#a78bfa', weight: 4, opacity: 0.5, dashArray: '6 4',
+            }).addTo(map);
+            routeLines.push(altLine);
+          }
+        }
+
+        // Draw primary route (green, on top)
+        if (primary.waypoints) {
+          const primaryCoords = primary.waypoints.map(w => [w.latitude, w.longitude]);
+          const primaryLine = L.polyline(primaryCoords, {
+            color: '#34d399', weight: 5, opacity: 0.9,
+          }).addTo(map);
+          routeLines.push(primaryLine);
+
+          // Animate route traversal
+          animateRoute(primaryCoords);
+
+          map.fitBounds(primaryLine.getBounds().pad(0.2));
+        }
+
+        // Highlight nodes on the route
+        for (const nodeId of primary.nodeIds) {
+          const marker = nodeMarkers.get(nodeId);
+          if (marker) {
+            marker.setStyle({ radius: 10, weight: 3, color: '#34d399' });
+          }
+        }
+
+        // Show route info
+        showRouteInfo(data);
+        selectedFrom = null;
+        selectedTo = null;
+      } catch (err) {
+        console.error('Route error:', err);
+        alert('Failed to find route: ' + err.message);
+      }
+    }
+
+    // ── Animate route ──
+    function animateRoute(coords) {
+      let i = 0;
+      const pulseMarker = L.circleMarker(coords[0], {
+        radius: 7, fillColor: '#34d399', color: '#ffffff', weight: 2, fillOpacity: 1,
+      }).addTo(map);
+      routeLines.push(pulseMarker);
+
+      const animate = () => {
+        if (i >= coords.length) { map.removeLayer(pulseMarker); return; }
+        pulseMarker.setLatLng(coords[i]);
+        i++;
+        setTimeout(animate, 120);
+      };
+      animate();
+    }
+
+    // ── Show route info ──
+    function showRouteInfo(data) {
+      const panel = document.getElementById('route-info');
+      const metrics = document.getElementById('route-metrics');
+      const pathDiv = document.getElementById('route-path');
+      const primary = data.primaryRoute;
+      const baseline = data.baselineRoute;
+
+      document.getElementById('route-title').textContent = `${data.from} → ${data.to}`;
+
+      let html = `
+        <div class="route-metric metric-primary">
+          <div class="value">${Math.round(primary.travelTimeMinutes)} min</div>
+          <div class="label">Optimized ETA</div>
+        </div>
+        <div class="route-metric metric-primary">
+          <div class="value">${primary.distanceKm} km</div>
+          <div class="label">Distance</div>
+        </div>
+      `;
+
+      if (baseline) {
+        html += `
+          <div class="route-metric metric-baseline">
+            <div class="value">${Math.round(baseline.travelTimeMinutes)} min</div>
+            <div class="label">Baseline ETA</div>
+          </div>
+        `;
+        if (data.etaImprovementPct !== null) {
+          const color = data.etaImprovementPct > 0 ? '#34d399' : '#f87171';
+          html += `
+            <div class="route-metric metric-improvement">
+              <div class="value" style="color:${color}">${data.etaImprovementPct > 0 ? '+' : ''}${data.etaImprovementPct}%</div>
+              <div class="label">Improvement</div>
+            </div>
+          `;
+        }
+      }
+
+      html += `
+        <div class="route-metric">
+          <div class="value" style="color:#a78bfa;">${primary.nodeIds.length}</div>
+          <div class="label">Nodes Traversed</div>
+        </div>
+      `;
+
+      metrics.innerHTML = html;
+
+      // Path visualization
+      let pathHtml = '<strong>Path:</strong> ';
+      for (const nodeId of primary.nodeIds) {
+        const cls = nodeId.startsWith('H') ? 'node-h' : 'node-a';
+        pathHtml += `<span class="node ${cls}">${nodeId}</span>`;
+        if (nodeId !== primary.nodeIds[primary.nodeIds.length - 1]) {
+          pathHtml += ' → ';
+        }
+      }
+      if (data.selectionReason) {
+        pathHtml += `<br><br><em style="color:#64748b;">${data.selectionReason}</em>`;
+      }
+      pathDiv.innerHTML = pathHtml;
+
+      panel.classList.add('visible');
+    }
+
+    // ── Clear route ──
+    function clearRoute() {
+      clearRouteLines();
+      document.getElementById('route-info').classList.remove('visible');
+      // Reset node styles
+      for (const [nodeId, marker] of nodeMarkers) {
+        const isHospital = nodeId.startsWith('H');
+        marker.setStyle({
+          radius: isHospital ? 8 : 6,
+          weight: 1.5,
+          color: 'rgba(255,255,255,0.3)',
+        });
+      }
+      selectedFrom = null;
+      selectedTo = null;
+    }
+
+    function clearRouteLines() {
+      for (const line of routeLines) { map.removeLayer(line); }
+      routeLines = [];
+    }
+
+    // ── Toggle layers ──
+    function toggleEdges() {
+      showEdges = document.getElementById('toggle-edges').checked;
+      edgeLines.forEach(line => showEdges ? line.addTo(map) : map.removeLayer(line));
+    }
+
+    function toggleCenterlines() {
+      const show = document.getElementById('toggle-centerlines').checked;
+      centerlineLines.forEach(line => show ? line.addTo(map) : map.removeLayer(line));
+    }
+
+    function toggleLabels() {
+      showLabels = document.getElementById('toggle-labels').checked;
+      labelMarkers.forEach(m => showLabels ? m.addTo(map) : map.removeLayer(m));
+    }
+
+    function toggleWeights() {
+      showWeights = document.getElementById('toggle-weights').checked;
+      weightLabels.forEach(m => showWeights ? m.addTo(map) : map.removeLayer(m));
+    }
+
+    // ── Initialize ──
+    loadGraph();
+  </script>
+</body>
+</html>

@@ -1,17 +1,19 @@
 import 'package:flutter/foundation.dart';
 import '../../data/datasources/auth_datasource.dart';
+import '../../data/datasources/remote/socket_service.dart';
 import '../../domain/entities/user_profile.dart';
 
 /// Presentation controller managing user authentication, registration, token persistence,
 /// and role display for the Bystander Mobile Application.
 class AuthController extends ChangeNotifier {
   final AuthDataSource authDataSource;
+  final SocketService? socketService;
 
   UserProfile? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
 
-  AuthController({required this.authDataSource}) {
+  AuthController({required this.authDataSource, this.socketService}) {
     checkExistingAuth();
   }
 
@@ -31,6 +33,9 @@ class AuthController extends ChangeNotifier {
       final savedProfile = await authDataSource.getCurrentUser();
       if (savedProfile != null) {
         _currentUser = savedProfile;
+        if (savedProfile.token != null && savedProfile.token!.isNotEmpty) {
+          socketService?.connect(token: savedProfile.token);
+        }
       }
     } catch (_) {
       // No saved session
@@ -48,6 +53,9 @@ class AuthController extends ChangeNotifier {
     try {
       final profile = await authDataSource.login(email: email, password: password);
       _currentUser = profile;
+      if (profile.token != null && profile.token!.isNotEmpty) {
+        socketService?.connect(token: profile.token);
+      }
       _isLoading = false;
       notifyListeners();
       return true;
@@ -89,6 +97,9 @@ class AuthController extends ChangeNotifier {
         role: role,
       );
       _currentUser = profile;
+      if (profile.token != null && profile.token!.isNotEmpty) {
+        socketService?.connect(token: profile.token);
+      }
       _isLoading = false;
       notifyListeners();
       return true;
@@ -103,6 +114,7 @@ class AuthController extends ChangeNotifier {
   /// Clear token and logout.
   Future<void> logout() async {
     await authDataSource.clearSession();
+    socketService?.disconnect();
     _currentUser = null;
     _errorMessage = null;
     notifyListeners();

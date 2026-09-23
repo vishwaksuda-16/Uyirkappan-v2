@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../../models/emergency_request_model.dart';
 import '../../models/eta_model.dart';
 import '../../models/tracking_model.dart';
+import '../../../domain/entities/emergency_type.dart';
+import '../../../domain/entities/location_data.dart';
 import '../../../domain/entities/request_status.dart';
 import '../emergency_request_datasource.dart';
 import '../mock/mock_emergency_request_datasource.dart';
@@ -67,6 +69,34 @@ class AdaptiveEmergencyRequestDataSource implements EmergencyRequestDataSource {
       }
     }
     return await mockDataSource.getRequestStatus(requestId);
+  }
+
+  @override
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  }) async {
+    if (useRemoteNotifier.value) {
+      try {
+        return await remoteDataSource.recommendHospitalDestination(
+          emergencyType: emergencyType,
+          victimCount: victimCount,
+          emergencyLocation: emergencyLocation,
+        );
+      } catch (_) {
+        return await mockDataSource.recommendHospitalDestination(
+          emergencyType: emergencyType,
+          victimCount: victimCount,
+          emergencyLocation: emergencyLocation,
+        );
+      }
+    }
+    return await mockDataSource.recommendHospitalDestination(
+      emergencyType: emergencyType,
+      victimCount: victimCount,
+      emergencyLocation: emergencyLocation,
+    );
   }
 
   @override

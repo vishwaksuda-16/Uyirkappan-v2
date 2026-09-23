@@ -7,7 +7,7 @@ const spec = {
     version: '1.1.0',
     description: 'Central coordinator for Bystander App, Driver/Ambulance App and Hospital Dashboard. Data store: memory or MongoDB (DATA_STORE_MODE). Demo credentials (password123): bystander@uyirkappan.demo, driver1..5@uyirkappan.demo, staff@uyirkappan.demo, admin@uyirkappan.demo.',
   },
-  servers: [{ url: 'http://localhost:4000/api', description: 'Local development' }],
+  servers: [{ url: 'http://localhost:5000/api', description: 'Local development' }],
   components: {
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
@@ -23,9 +23,9 @@ const spec = {
       GeoPoint: {
         type: 'object',
         required: ['latitude', 'longitude'],
-        properties: { 
-          latitude: { type: 'number', example: 13.0827 }, 
-          longitude: { type: 'number', example: 80.2707 } 
+        properties: {
+          latitude: { type: 'number', example: 13.0827 },
+          longitude: { type: 'number', example: 80.2707 }
         },
       },
       RegisterRequest: {
@@ -86,20 +86,20 @@ const spec = {
           pickupLocation: { $ref: '#/components/schemas/GeoPoint' },
           destinationHospitalId: { type: 'string', example: 'HOSP-03' },
           assignedAmbulanceId: { type: 'string', example: 'AMB-01' },
-          status: { 
-            type: 'string', 
-            enum: ['SEARCHING', 'ASSIGNED', 'DRIVER_ACCEPTED', 'EN_ROUTE_TO_PATIENT', 
-                   'ARRIVED_AT_PATIENT', 'PATIENT_ONBOARD', 'EN_ROUTE_TO_HOSPITAL', 
-                   'ARRIVED_AT_HOSPITAL', 'COMPLETED', 'CANCELLED', 'FALLBACK', 
-                   'NO_AMBULANCE_AVAILABLE'] 
+          status: {
+            type: 'string',
+            enum: ['SEARCHING', 'ASSIGNED', 'DRIVER_ACCEPTED', 'EN_ROUTE_TO_PATIENT',
+              'ARRIVED_AT_PATIENT', 'PATIENT_ONBOARD', 'EN_ROUTE_TO_HOSPITAL',
+              'ARRIVED_AT_HOSPITAL', 'COMPLETED', 'CANCELLED', 'FALLBACK',
+              'NO_AMBULANCE_AVAILABLE']
           },
           eta: { type: 'integer', example: 7 },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' },
           completedAt: { type: 'string', format: 'date-time', nullable: true },
-          attempts: { 
-            type: 'array', 
-            items: { 
+          attempts: {
+            type: 'array',
+            items: {
               type: 'object',
               properties: {
                 attemptNumber: { type: 'integer', example: 1 },
@@ -197,7 +197,7 @@ const spec = {
           status: { type: 'string', example: 'UP' },
           message: { type: 'string', example: 'UyirKappan Backend Running' },
           dataStoreMode: { type: 'string', enum: ['memory', 'mongodb'] },
-          mongoDb: { 
+          mongoDb: {
             type: 'object',
             properties: {
               connected: { type: 'boolean' },
@@ -214,15 +214,15 @@ const spec = {
       get: {
         tags: ['System'],
         summary: 'Health check',
-        responses: { 
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/HealthResponse' } 
-              } 
-            } 
-          } 
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/HealthResponse' }
+              }
+            }
+          }
         },
       },
     },
@@ -230,38 +230,38 @@ const spec = {
       post: {
         tags: ['Auth'],
         summary: 'Register a new user',
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/RegisterRequest' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/RegisterRequest' }
+            }
+          }
         },
         responses: {
-          201: { 
-            description: 'Created', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/AuthResponse' } 
-              } 
-            } 
+          201: {
+            description: 'Created',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AuthResponse' }
+              }
+            }
           },
-          400: { 
-            description: 'Invalid request', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          400: {
+            description: 'Invalid request',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
-          409: { 
-            description: 'User already exists', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          409: {
+            description: 'User already exists',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
         },
       },
@@ -270,30 +270,30 @@ const spec = {
       post: {
         tags: ['Auth'],
         summary: 'Login and receive a JWT',
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/LoginRequest' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/LoginRequest' }
+            }
+          }
         },
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/AuthResponse' } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AuthResponse' }
+              }
+            }
           },
-          401: { 
-            description: 'Invalid credentials', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          401: {
+            description: 'Invalid credentials',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
         },
       },
@@ -304,27 +304,27 @@ const spec = {
         summary: 'Current authenticated user',
         security: [{ bearerAuth: [] }],
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    user: { $ref: '#/components/schemas/User' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    user: { $ref: '#/components/schemas/User' }
+                  }
+                }
+              }
+            }
           },
-          401: { 
-            description: 'Unauthorized', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          401: {
+            description: 'Unauthorized',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
         },
       },
@@ -334,56 +334,56 @@ const spec = {
         tags: ['Emergency'],
         summary: 'Create an emergency request (triggers dispatch + assignment)',
         security: [{ bearerAuth: [] }],
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/EmergencyCreateRequest' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/EmergencyCreateRequest' }
+            }
+          }
         },
         responses: {
           201: {
             description: 'Created',
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    requestId: { type: 'string' }, 
-                    status: { type: 'string' }, 
-                    assignmentId: { type: 'string' }, 
-                    ambulanceId: { type: 'string' }, 
-                    eta: { type: 'integer' } 
-                  } 
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    requestId: { type: 'string' },
+                    status: { type: 'string' },
+                    assignmentId: { type: 'string' },
+                    ambulanceId: { type: 'string' },
+                    eta: { type: 'integer' }
+                  }
                 },
-                example: { 
-                  success: true, 
-                  requestId: 'UK-2026-000001', 
-                  status: 'ASSIGNED', 
-                  assignmentId: 'ASSIGN-001', 
-                  ambulanceId: 'AMB-01', 
-                  eta: 7 
-                } 
-              } 
-            } 
+                example: {
+                  success: true,
+                  requestId: 'UK-2026-000001',
+                  status: 'ASSIGNED',
+                  assignmentId: 'ASSIGN-001',
+                  ambulanceId: 'AMB-01',
+                  eta: 7
+                }
+              }
+            }
           },
-          400: { 
-            description: 'Invalid payload', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          400: {
+            description: 'Invalid payload',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
-          401: { 
-            description: 'Unauthorized', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          401: {
+            description: 'Unauthorized',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
         },
       },
@@ -393,43 +393,43 @@ const spec = {
         tags: ['Emergency'],
         summary: 'Get emergency details with attempt history',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'requestId', 
-          required: true, 
-          schema: { type: 'string' }, 
-          example: 'UK-2026-000001' 
+        parameters: [{
+          in: 'path',
+          name: 'requestId',
+          required: true,
+          schema: { type: 'string' },
+          example: 'UK-2026-000001'
         }],
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    request: { $ref: '#/components/schemas/EmergencyRequest' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    request: { $ref: '#/components/schemas/EmergencyRequest' }
+                  }
+                }
+              }
+            }
           },
-          403: { 
-            description: 'Forbidden', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          403: {
+            description: 'Forbidden',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
-          404: { 
-            description: 'Not found', 
-            content: { 
-              'application/json': { 
-                schema: { $ref: '#/components/schemas/Error' } 
-              } 
-            } 
+          404: {
+            description: 'Not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Error' }
+              }
+            }
           },
         },
       },
@@ -439,11 +439,11 @@ const spec = {
         tags: ['Emergency'],
         summary: 'Cancel an active emergency (releases ambulance)',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'requestId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'requestId',
+          required: true,
+          schema: { type: 'string' }
         }],
         responses: {
           200: { description: 'Cancelled' },
@@ -458,26 +458,26 @@ const spec = {
         tags: ['Emergency', 'Tracking'],
         summary: 'Current ambulance location, ETA and status',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'requestId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'requestId',
+          required: true,
+          schema: { type: 'string' }
         }],
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    tracking: { $ref: '#/components/schemas/TrackingResponse' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    tracking: { $ref: '#/components/schemas/TrackingResponse' }
+                  }
+                }
+              }
+            }
           },
           403: { description: 'Forbidden' },
           404: { description: 'Not found' },
@@ -490,19 +490,19 @@ const spec = {
         summary: 'Get the driver\'s active assignment',
         security: [{ bearerAuth: [] }],
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    assignment: { $ref: '#/components/schemas/Assignment' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    assignment: { $ref: '#/components/schemas/Assignment' }
+                  }
+                }
+              }
+            }
           },
           403: { description: 'Requires DRIVER role' },
         },
@@ -513,24 +513,24 @@ const spec = {
         tags: ['Ambulance'],
         summary: 'List all ambulances',
         security: [{ bearerAuth: [] }],
-        responses: { 
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    ambulances: { 
-                      type: 'array', 
-                      items: { $ref: '#/components/schemas/Ambulance' } 
-                    } 
-                  } 
-                } 
-              } 
-            } 
-          } 
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    ambulances: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Ambulance' }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
       },
     },
@@ -539,16 +539,16 @@ const spec = {
         tags: ['Ambulance'],
         summary: 'Get one ambulance',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'ambulanceId', 
-          required: true, 
-          schema: { type: 'string' }, 
-          example: 'AMB-01' 
+        parameters: [{
+          in: 'path',
+          name: 'ambulanceId',
+          required: true,
+          schema: { type: 'string' },
+          example: 'AMB-01'
         }],
-        responses: { 
-          200: { description: 'OK' }, 
-          404: { description: 'Not found' } 
+        responses: {
+          200: { description: 'OK' },
+          404: { description: 'Not found' }
         },
       },
     },
@@ -557,25 +557,25 @@ const spec = {
         tags: ['Ambulance'],
         summary: 'Update ambulance status (AVAILABLE | ASSIGNED | BUSY | OFFLINE)',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'ambulanceId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'ambulanceId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/StatusUpdate' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/StatusUpdate' }
+            }
+          }
         },
-        responses: { 
-          200: { description: 'Updated' }, 
-          400: { description: 'Invalid status' }, 
-          403: { description: 'Not your ambulance' }, 
-          404: { description: 'Not found' } 
+        responses: {
+          200: { description: 'Updated' },
+          400: { description: 'Invalid status' },
+          403: { description: 'Not your ambulance' },
+          404: { description: 'Not found' }
         },
       },
     },
@@ -584,35 +584,35 @@ const spec = {
         tags: ['Ambulance', 'Tracking'],
         summary: 'Send GPS update; broadcasts AMBULANCE_LOCATION_UPDATED + ETA_UPDATED',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'ambulanceId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'ambulanceId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/AmbulanceLocation' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AmbulanceLocation' }
+            }
+          }
         },
         responses: {
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    ambulance: { $ref: '#/components/schemas/Ambulance' }, 
-                    eta: { type: 'integer', nullable: true } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    ambulance: { $ref: '#/components/schemas/Ambulance' },
+                    eta: { type: 'integer', nullable: true }
+                  }
+                }
+              }
+            }
           },
           400: { description: 'Invalid coordinates' },
           403: { description: 'Not your ambulance' },
@@ -624,17 +624,17 @@ const spec = {
         tags: ['Assignment'],
         summary: 'Get one assignment',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'assignmentId', 
-          required: true, 
-          schema: { type: 'string' }, 
-          example: 'ASSIGN-001' 
+        parameters: [{
+          in: 'path',
+          name: 'assignmentId',
+          required: true,
+          schema: { type: 'string' },
+          example: 'ASSIGN-001'
         }],
-        responses: { 
-          200: { description: 'OK' }, 
-          403: { description: 'Forbidden' }, 
-          404: { description: 'Not found' } 
+        responses: {
+          200: { description: 'OK' },
+          403: { description: 'Forbidden' },
+          404: { description: 'Not found' }
         },
       },
     },
@@ -643,28 +643,28 @@ const spec = {
         tags: ['Assignment'],
         summary: 'Accept assignment (PENDING -> ACCEPTED, race-safe)',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'assignmentId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'assignmentId',
+          required: true,
+          schema: { type: 'string' }
         }],
         responses: {
-          200: { 
-            description: 'Accepted', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    assignmentId: { type: 'string' }, 
-                    requestId: { type: 'string' }, 
-                    eta: { type: 'integer' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'Accepted',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    assignmentId: { type: 'string' },
+                    requestId: { type: 'string' },
+                    eta: { type: 'integer' }
+                  }
+                }
+              }
+            }
           },
           409: { description: 'Assignment no longer active (double-accept, timeout already fired)' },
           403: { description: 'Not your assignment' },
@@ -677,27 +677,27 @@ const spec = {
         tags: ['Assignment', 'Fallback'],
         summary: 'Reject assignment; triggers cascading fallback on the same requestId',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'assignmentId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'assignmentId',
+          required: true,
+          schema: { type: 'string' }
         }],
         responses: {
-          200: { 
-            description: 'Rejected; fallback started', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    assignmentId: { type: 'string' }, 
-                    message: { type: 'string' } 
-                  } 
-                } 
-              } 
-            } 
+          200: {
+            description: 'Rejected; fallback started',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    assignmentId: { type: 'string' },
+                    message: { type: 'string' }
+                  }
+                }
+              }
+            }
           },
           409: { description: 'Assignment no longer active' },
           403: { description: 'Not your assignment' },
@@ -709,19 +709,19 @@ const spec = {
         tags: ['Assignment'],
         summary: 'Advance driver lifecycle status one step at a time',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'assignmentId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'assignmentId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/StatusUpdate' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/StatusUpdate' }
+            }
+          }
         },
         responses: {
           200: { description: 'Status updated' },
@@ -736,24 +736,24 @@ const spec = {
         tags: ['Hospital'],
         summary: 'List hospitals',
         security: [{ bearerAuth: [] }],
-        responses: { 
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    hospitals: { 
-                      type: 'array', 
-                      items: { $ref: '#/components/schemas/Hospital' } 
-                    } 
-                  } 
-                } 
-              } 
-            } 
-          } 
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    hospitals: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/Hospital' }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
       },
     },
@@ -762,16 +762,16 @@ const spec = {
         tags: ['Hospital'],
         summary: 'Get one hospital',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'hospitalId', 
-          required: true, 
-          schema: { type: 'string' }, 
-          example: 'HOSP-01' 
+        parameters: [{
+          in: 'path',
+          name: 'hospitalId',
+          required: true,
+          schema: { type: 'string' },
+          example: 'HOSP-01'
         }],
-        responses: { 
-          200: { description: 'OK' }, 
-          404: { description: 'Not found' } 
+        responses: {
+          200: { description: 'OK' },
+          404: { description: 'Not found' }
         },
       },
     },
@@ -780,11 +780,11 @@ const spec = {
         tags: ['Hospital'],
         summary: 'Incoming emergencies for this hospital (active statuses only)',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'hospitalId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'hospitalId',
+          required: true,
+          schema: { type: 'string' }
         }],
         responses: {
           200: {
@@ -823,72 +823,72 @@ const spec = {
         tags: ['Hospital'],
         summary: 'Get hospital resources',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'hospitalId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'hospitalId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        responses: { 
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    resources: { 
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    resources: {
                       type: 'object',
                       properties: {
                         generalBeds: { type: 'integer' },
                         icuBeds: { type: 'integer' },
                         ventilators: { type: 'integer' }
                       }
-                    } 
-                  } 
-                } 
-              } 
-            } 
-          }, 
-          403: { description: 'Forbidden' } 
+                    }
+                  }
+                }
+              }
+            }
+          },
+          403: { description: 'Forbidden' }
         },
       },
       patch: {
         tags: ['Hospital'],
         summary: 'Update hospital resources',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'hospitalId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'hospitalId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        requestBody: { 
-          required: true, 
-          content: { 
-            'application/json': { 
-              schema: { $ref: '#/components/schemas/ResourceUpdate' } 
-            } 
-          } 
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ResourceUpdate' }
+            }
+          }
         },
-        responses: { 
-          200: { 
-            description: 'Updated', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    hospital: { $ref: '#/components/schemas/Hospital' } 
-                  } 
-                } 
-              } 
-            } 
-          }, 
-          400: { description: 'Invalid values' }, 
-          403: { description: 'Forbidden' } 
+        responses: {
+          200: {
+            description: 'Updated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    hospital: { $ref: '#/components/schemas/Hospital' }
+                  }
+                }
+              }
+            }
+          },
+          400: { description: 'Invalid values' },
+          403: { description: 'Forbidden' }
         },
       },
     },
@@ -897,24 +897,24 @@ const spec = {
         tags: ['Hospital'],
         summary: 'History of all emergencies routed to this hospital',
         security: [{ bearerAuth: [] }],
-        parameters: [{ 
-          in: 'path', 
-          name: 'hospitalId', 
-          required: true, 
-          schema: { type: 'string' } 
+        parameters: [{
+          in: 'path',
+          name: 'hospitalId',
+          required: true,
+          schema: { type: 'string' }
         }],
-        responses: { 
-          200: { 
-            description: 'OK', 
-            content: { 
-              'application/json': { 
-                schema: { 
-                  type: 'object', 
-                  properties: { 
-                    success: { type: 'boolean' }, 
-                    history: { 
-                      type: 'array', 
-                      items: { 
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    history: {
+                      type: 'array',
+                      items: {
                         type: 'object',
                         properties: {
                           requestId: { type: 'string' },
@@ -925,14 +925,14 @@ const spec = {
                           createdAt: { type: 'string', format: 'date-time' },
                           completedAt: { type: 'string', format: 'date-time', nullable: true }
                         }
-                      } 
-                    } 
-                  } 
-                } 
-              } 
-            } 
-          }, 
-          403: { description: 'Forbidden' } 
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          403: { description: 'Forbidden' }
         },
       },
     },

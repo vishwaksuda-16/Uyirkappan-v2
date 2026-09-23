@@ -75,16 +75,16 @@ class RoadNetwork {
     ),
     'Hospital H1': RouteWaypoint(
       nodeId: 'Hospital H1',
-      nodeName: 'Apollo Emergency Care (H1)',
+      nodeName: 'Apollo Trauma & Emergency Center (HOSP-01)',
       location: GeoPoint(13.0585, 80.2505),
       roadName: 'Greams Lane Emergency Gate',
     ),
   };
 
-  // Standard Hospital H1 destination
+  // Standard Hospital H1 destination (matching HOSP-01)
   static const Hospital hospitalH1 = Hospital(
-    hospitalId: 'H1',
-    name: 'Apollo Emergency Care',
+    hospitalId: 'HOSP-01',
+    name: 'Apollo Trauma & Emergency Center (HOSP-01)',
     location: GeoPoint(13.0585, 80.2505),
     address: '21 Greams Lane, Thousand Lights, Chennai',
     distanceKm: 6.4,

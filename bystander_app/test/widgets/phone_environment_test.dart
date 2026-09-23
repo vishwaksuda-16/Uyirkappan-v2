@@ -5,6 +5,7 @@ import 'package:uyirkappan_bystander/data/datasources/emergency_request_datasour
 import 'package:uyirkappan_bystander/data/datasources/mock/mock_emergency_request_datasource.dart';
 import 'package:uyirkappan_bystander/data/models/emergency_request_model.dart';
 import 'package:uyirkappan_bystander/data/repositories/emergency_request_repository_impl.dart';
+import 'package:uyirkappan_bystander/domain/entities/emergency_type.dart';
 import 'package:uyirkappan_bystander/domain/entities/location_data.dart';
 import 'package:uyirkappan_bystander/domain/entities/request_status.dart';
 import 'package:uyirkappan_bystander/presentation/controllers/emergency_controller.dart';
@@ -28,6 +29,13 @@ class DeterministicPhoneTestDataSource implements EmergencyRequestDataSource {
 
   @override
   Future<RequestStatus> getRequestStatus(String requestId) async => stored!.status;
+
+  @override
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  }) async => 'Vijaya Hospital';
 
   @override
   Future<EmergencyRequestModel> cancelEmergencyRequest(String requestId, {String? reason}) async {

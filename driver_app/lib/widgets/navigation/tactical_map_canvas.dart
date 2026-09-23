@@ -4,20 +4,23 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/geo_utils.dart';
 import '../../models/location_model.dart';
 import '../../models/route_model.dart';
-import '../../services/simulation/road_network.dart';
 
 class TacticalMapCanvas extends StatelessWidget {
   final RouteModel? route;
+  final RouteModel? alternativeRoute;
   final AmbulanceLocation? currentLocation;
   final String destinationName;
   final bool isEnRouteToHospital;
+  final String? ambulanceId;
 
   const TacticalMapCanvas({
     super.key,
     required this.route,
+    this.alternativeRoute,
     required this.currentLocation,
     required this.destinationName,
     this.isEnRouteToHospital = false,
+    this.ambulanceId,
   });
 
   @override
@@ -36,8 +39,11 @@ class TacticalMapCanvas extends StatelessWidget {
               child: CustomPaint(
                 painter: _TacticalMapPainter(
                   route: route,
+                  alternativeRoute: alternativeRoute,
                   currentLocation: currentLocation,
+                  destinationName: destinationName,
                   isEnRouteToHospital: isEnRouteToHospital,
+                  ambulanceId: ambulanceId,
                 ),
               ),
             ),
@@ -93,6 +99,7 @@ class TacticalMapCanvas extends StatelessWidget {
   }
 
   Widget _buildLegend() {
+    final hasAlt = alternativeRoute != null && alternativeRoute!.waypoints.isNotEmpty;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -104,10 +111,14 @@ class TacticalMapCanvas extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _legendItem(AppColors.emergencyRed, 'Ambulance'),
-          const SizedBox(width: 12),
-          _legendItem(AppColors.tacticalCyan, 'Active Route'),
-          const SizedBox(width: 12),
-          _legendItem(AppColors.hospitalBadge, 'Hospital'),
+          const SizedBox(width: 10),
+          _legendItem(AppColors.tacticalCyan, 'Selected Route'),
+          const SizedBox(width: 10),
+          if (hasAlt) ...[
+            _legendItem(const Color(0xFF64748B), 'Alternative Route'),
+            const SizedBox(width: 10),
+          ],
+          _legendItem(AppColors.hospitalBadge, isEnRouteToHospital ? 'Hospital' : 'Scene'),
         ],
       ),
     );
@@ -138,28 +149,78 @@ class TacticalMapCanvas extends StatelessWidget {
 
 class _TacticalMapPainter extends CustomPainter {
   final RouteModel? route;
+  final RouteModel? alternativeRoute;
   final AmbulanceLocation? currentLocation;
+  final String destinationName;
   final bool isEnRouteToHospital;
+  final String? ambulanceId;
 
   _TacticalMapPainter({
     required this.route,
+    this.alternativeRoute,
     required this.currentLocation,
+    required this.destinationName,
     required this.isEnRouteToHospital,
+    this.ambulanceId,
   });
 
-  // Coordinate bounding box for Chennai simulation region
-  static const double minLat = 13.0500;
-  static const double maxLat = 13.0900;
-  static const double minLon = 80.2450;
-  static const double maxLon = 80.2850;
+  double _minLat = 13.04;
+  double _maxLat = 13.10;
+  double _minLon = 80.22;
+  double _maxLon = 80.29;
+
+  void _calculateBounds() {
+    double minLat = 999.0;
+    double maxLat = -999.0;
+    double minLon = 999.0;
+    double maxLon = -999.0;
+    bool hasPoints = false;
+
+    void includePoint(GeoPoint pt) {
+      if (pt.latitude == 0 && pt.longitude == 0) return;
+      hasPoints = true;
+      if (pt.latitude < minLat) minLat = pt.latitude;
+      if (pt.latitude > maxLat) maxLat = pt.latitude;
+      if (pt.longitude < minLon) minLon = pt.longitude;
+      if (pt.longitude > maxLon) maxLon = pt.longitude;
+    }
+
+    if (route != null) {
+      for (final wp in route!.waypoints) {
+        includePoint(wp.location);
+      }
+    }
+    if (alternativeRoute != null) {
+      for (final wp in alternativeRoute!.waypoints) {
+        includePoint(wp.location);
+      }
+    }
+    if (currentLocation != null) {
+      includePoint(currentLocation!.toGeoPoint);
+    }
+
+    if (hasPoints && minLat < maxLat && minLon < maxLon) {
+      final latPad = math.max((maxLat - minLat) * 0.15, 0.005);
+      final lonPad = math.max((maxLon - minLon) * 0.15, 0.005);
+      _minLat = minLat - latPad;
+      _maxLat = maxLat + latPad;
+      _minLon = minLon - lonPad;
+      _maxLon = maxLon + lonPad;
+    } else {
+      _minLat = 12.95;
+      _maxLat = 13.15;
+      _minLon = 80.15;
+      _maxLon = 80.30;
+    }
+  }
 
   Offset _geoToCanvas(GeoPoint point, Size size) {
-    // Normalization to [0, 1]
-    final xNorm = (point.longitude - minLon) / (maxLon - minLon);
-    // Invert Y because canvas Y increases downwards
-    final yNorm = 1.0 - ((point.latitude - minLat) / (maxLat - minLat));
+    final lonSpan = (_maxLon - _minLon) > 0 ? (_maxLon - _minLon) : 0.05;
+    final latSpan = (_maxLat - _minLat) > 0 ? (_maxLat - _minLat) : 0.05;
+    final xNorm = ((point.longitude - _minLon) / lonSpan).clamp(0.0, 1.0);
+    final yNorm = (1.0 - ((point.latitude - _minLat) / latSpan)).clamp(0.0, 1.0);
 
-    final padding = 40.0;
+    const padding = 40.0;
     final drawWidth = size.width - (padding * 2);
     final drawHeight = size.height - (padding * 2);
 
@@ -171,8 +232,9 @@ class _TacticalMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    _calculateBounds();
     _drawTacticalGrid(canvas, size);
-    _drawAllRoadNetwork(canvas, size);
+    _drawAlternativeRoute(canvas, size);
     _drawActiveRoute(canvas, size);
     _drawWaypoints(canvas, size);
     _drawAmbulanceMarker(canvas, size);
@@ -192,45 +254,53 @@ class _TacticalMapPainter extends CustomPainter {
     }
   }
 
-  void _drawAllRoadNetwork(Canvas canvas, Size size) {
-    final roadPaint = Paint()
-      ..color = const Color(0xFF1E2F48)
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.round;
+  void _drawAlternativeRoute(Canvas canvas, Size size) {
+    final alt = alternativeRoute;
+    if (alt == null || alt.waypoints.length < 2) return;
 
-    // Draw background interconnected road network
-    final nodeKeys = RoadNetwork.nodes.keys.toList();
-    for (int i = 0; i < nodeKeys.length - 1; i++) {
-      final p1 = _geoToCanvas(RoadNetwork.nodes[nodeKeys[i]]!.location, size);
-      final p2 = _geoToCanvas(RoadNetwork.nodes[nodeKeys[i + 1]]!.location, size);
-      canvas.drawLine(p1, p2, roadPaint);
+    final altPaint = Paint()
+      ..color = const Color(0xFF64748B)
+      ..strokeWidth = 4.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    for (int i = 0; i < alt.waypoints.length; i++) {
+      final pt = _geoToCanvas(alt.waypoints[i].location, size);
+      if (i == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
     }
+    canvas.drawPath(path, altPaint);
   }
 
   void _drawActiveRoute(Canvas canvas, Size size) {
-    if (route == null || route!.waypoints.length < 2) return;
+    final waypoints = route?.waypoints;
+    if (waypoints == null || waypoints.length < 2) return;
 
-    final path = Path();
-    final waypoints = route!.waypoints;
-
-    final first = _geoToCanvas(waypoints.first.location, size);
-    path.moveTo(first.dx, first.dy);
-
-    for (int i = 1; i < waypoints.length; i++) {
-      final pt = _geoToCanvas(waypoints[i].location, size);
-      path.lineTo(pt.dx, pt.dy);
-    }
-
-    // Glow underlay
+    // Glowing underlay
     final glowPaint = Paint()
-      ..color = AppColors.tacticalCyan.withValues(alpha: 0.3)
+      ..color = AppColors.tacticalCyan.withValues(alpha: 0.25)
       ..strokeWidth = 10.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    for (int i = 0; i < waypoints.length; i++) {
+      final pt = _geoToCanvas(waypoints[i].location, size);
+      if (i == 0) {
+        path.moveTo(pt.dx, pt.dy);
+      } else {
+        path.lineTo(pt.dx, pt.dy);
+      }
+    }
     canvas.drawPath(path, glowPaint);
 
-    // Main route stroke
+    // Primary route line
     final activeRoutePaint = Paint()
       ..color = AppColors.tacticalCyan
       ..strokeWidth = 4.0
@@ -238,32 +308,58 @@ class _TacticalMapPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     canvas.drawPath(path, activeRoutePaint);
+
+    // Label on active route
+    if (waypoints.length > 2) {
+      final midPt = _geoToCanvas(waypoints[waypoints.length ~/ 2].location, size);
+      final labelText = route?.routeId != null ? '★ ROUTE ${route!.routeId} (Selected)' : '★ OPTIMAL ROUTE (Selected)';
+      final labelSpan = TextSpan(
+        text: labelText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          backgroundColor: Color(0xDD0369A1),
+        ),
+      );
+      final tp = TextPainter(text: labelSpan, textDirection: TextDirection.ltr)..layout();
+      tp.paint(canvas, Offset(midPt.dx - tp.width / 2, midPt.dy + 10));
+    }
   }
 
   void _drawWaypoints(Canvas canvas, Size size) {
-    final nodes = RoadNetwork.nodes.values;
-    for (final node in nodes) {
-      final offset = _geoToCanvas(node.location, size);
-      final isHospital = node.nodeId.contains('Hospital');
-      final isPickup = node.nodeId == 'Node 24';
+    final waypoints = route?.waypoints ?? [];
+    if (waypoints.isEmpty) return;
+
+    for (int i = 0; i < waypoints.length; i++) {
+      final wp = waypoints[i];
+      final offset = _geoToCanvas(wp.location, size);
+      final isStart = i == 0;
+      final isEnd = i == waypoints.length - 1;
 
       final paint = Paint()
-        ..color = isHospital
-            ? AppColors.hospitalBadge
-            : isPickup
-                ? AppColors.emergencyRed
+        ..color = isEnd
+            ? (isEnRouteToHospital ? AppColors.hospitalBadge : AppColors.emergencyRed)
+            : isStart
+                ? const Color(0xFF0284C7)
                 : const Color(0xFF475569)
         ..style = PaintingStyle.fill;
 
-      canvas.drawCircle(offset, isHospital || isPickup ? 7 : 4, paint);
+      canvas.drawCircle(offset, isStart || isEnd ? 7 : 4, paint);
 
-      // Label
+      // Label: show destination/origin name or node name
+      final labelText = isEnd
+          ? destinationName
+          : isStart
+              ? (isEnRouteToHospital ? 'Patient Pickup Scene' : 'Ambulance Start')
+              : wp.nodeName;
+
       final textSpan = TextSpan(
-        text: node.nodeId,
+        text: labelText,
         style: TextStyle(
-          color: isHospital || isPickup ? Colors.white : AppColors.textMuted,
+          color: isStart || isEnd ? Colors.white : AppColors.textMuted,
           fontSize: 9,
-          fontWeight: isHospital || isPickup ? FontWeight.w800 : FontWeight.w500,
+          fontWeight: isStart || isEnd ? FontWeight.w800 : FontWeight.w500,
         ),
       );
       final textPainter = TextPainter(
@@ -313,13 +409,14 @@ class _TacticalMapPainter extends CustomPainter {
     );
     canvas.drawLine(pos, tip, arrowPaint);
 
-    // Speed badge above ambulance
+    // Dynamic speed badge above ambulance
+    final ambNum = ambulanceId ?? currentLocation?.ambulanceId ?? 'Ambulance';
     final badgeSpan = TextSpan(
-      text: 'AMB-003 • ${currentLocation!.speed.round()} km/h',
+      text: '$ambNum • ${currentLocation!.speed.round()} km/h',
       style: const TextStyle(
         color: Colors.white,
         fontSize: 9,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         backgroundColor: Color(0xDD1E293B),
       ),
     );

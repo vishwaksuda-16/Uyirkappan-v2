@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UyirKappan — Baseline vs Optimized Comparison</title>
+  <meta name="description" content="Side-by-side comparison of baseline ambulance dispatch vs UyirKappan traffic-aware optimized dispatch">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0e1a; color: #e0e6f0; overflow-x: hidden; }
+
+    .glass-panel {
+      background: rgba(15, 20, 40, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    #header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, rgba(10, 14, 30, 0.95), rgba(20, 30, 60, 0.95));
+      border-bottom: 1px solid rgba(100, 140, 255, 0.2);
+      backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100;
+    }
+    #header h1 {
+      font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 8px; }
+    .nav-links a {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+      text-decoration: none; color: #94a3b8; transition: all 0.2s;
+      border: 1px solid rgba(100, 140, 255, 0.1);
+    }
+    .nav-links a:hover { color: #60a5fa; border-color: rgba(100, 140, 255, 0.3); background: rgba(96, 165, 250, 0.08); }
+    .nav-links a.active { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    /* Summary cards */
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .summary-card {
+      padding: 24px; text-align: center;
+      background: rgba(15, 20, 40, 0.6);
+      border: 1px solid rgba(100, 140, 255, 0.1);
+      border-radius: 16px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .summary-card:hover { transform: translateY(-2px); border-color: rgba(100, 140, 255, 0.25); }
+    .summary-card .icon { font-size: 28px; margin-bottom: 8px; }
+    .summary-card .value {
+      font-size: 36px; font-weight: 900; letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+    .summary-card .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .value-green { color: #34d399; }
+    .value-blue { color: #60a5fa; }
+    .value-yellow { color: #fbbf24; }
+    .value-red { color: #f87171; }
+
+    /* Map section */
+    .map-section { display: grid; grid-template-columns: 1fr 360px; gap: 16px; margin-bottom: 24px; }
+    #comparison-map { height: 500px; border-radius: 16px; border: 1px solid rgba(100, 140, 255, 0.15); }
+    .map-controls { padding: 20px; }
+    .map-controls h3 { font-size: 14px; font-weight: 600; color: #a78bfa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    .request-list { max-height: 420px; overflow-y: auto; }
+    .request-item {
+      padding: 12px; border-radius: 10px; margin-bottom: 8px; cursor: pointer;
+      background: rgba(30, 40, 70, 0.4); border: 1px solid rgba(100, 140, 255, 0.08);
+      transition: all 0.2s; font-size: 12px;
+    }
+    .request-item:hover { background: rgba(30, 40, 70, 0.7); border-color: rgba(100, 140, 255, 0.2); }
+    .request-item.selected { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+    .request-item .req-id { font-weight: 700; color: #60a5fa; margin-bottom: 4px; }
+    .request-item .req-detail { color: #64748b; display: flex; justify-content: space-between; }
+    .improvement-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+    }
+    .improvement-positive { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .improvement-negative { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+
+    /* Chart section */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card { padding: 24px; }
+    .chart-card h3 { font-size: 14px; font-weight: 600; color: #a78bfa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+    .bar-label { width: 80px; color: #64748b; text-align: right; flex-shrink: 0; font-size: 11px; }
+    .bar-container { flex: 1; height: 24px; background: rgba(30, 40, 70, 0.5); border-radius: 6px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 6px; transition: width 0.8s ease-out; display: flex; align-items: center; padding-left: 8px; font-size: 10px; font-weight: 700; color: white; }
+    .bar-baseline { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .bar-optimized { background: linear-gradient(90deg, #059669, #34d399); }
+    .bar-value { width: 60px; text-align: right; font-weight: 600; color: #e0e6f0; flex-shrink: 0; }
+
+    /* Results table */
+    .table-card { padding: 24px; margin-bottom: 24px; }
+    .table-card h3 { font-size: 14px; font-weight: 600; color: #a78bfa; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 10px 12px; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; border-bottom: 1px solid rgba(100, 140, 255, 0.1); }
+    td { padding: 10px 12px; border-bottom: 1px solid rgba(100, 140, 255, 0.05); color: #94a3b8; }
+    tr:hover td { background: rgba(96, 165, 250, 0.04); }
+    .type-badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .type-CARDIAC { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .type-ACCIDENT { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
+    .type-STROKE { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .type-RESPIRATORY { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .type-TRAUMA { background: rgba(234, 179, 8, 0.15); color: #fbbf24; }
+    .type-FALL { background: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
+    .type-OTHER { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+
+    /* Loading */
+    #loading {
+      position: fixed; inset: 0; z-index: 2000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(10, 14, 26, 0.95);
+    }
+    #loading.hidden { display: none; }
+    .spinner { width: 48px; height: 48px; border: 3px solid rgba(100, 140, 255, 0.15); border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { margin-top: 16px; font-size: 14px; color: #64748b; }
+    #loading .progress-text { font-size: 12px; color: #475569; margin-top: 8px; }
+
+    .leaflet-popup-content-wrapper { background: rgba(15, 20, 40, 0.95) !important; border: 1px solid rgba(100, 140, 255, 0.2) !important; border-radius: 12px !important; color: #e0e6f0 !important; }
+    .leaflet-popup-tip { background: rgba(15, 20, 40, 0.95) !important; }
+    .leaflet-popup-content { font-family: 'Inter', sans-serif !important; font-size: 12px !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 20, 40, 0.4); }
+    ::-webkit-scrollbar-thumb { background: rgba(100, 140, 255, 0.2); border-radius: 3px; }
+
+    @media (max-width: 768px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .map-section { grid-template-columns: 1fr; }
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Running batch comparison on historical emergencies…</p>
+    <div class="progress-text">Computing Dijkstra routes for 50 requests</div>
+  </div>
+
+  <div id="header">
+    <h1>📊 Baseline vs UyirKappan Comparison</h1>
+    <div class="nav-links">
+      <a href="/network-map.html">Network</a>
+      <a href="/comparison-dashboard.html" class="active">Comparison</a>
+      <a href="/traffic-visualization.html">Traffic</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Summary Cards -->
+    <div class="summary-grid" id="summary-cards">
+      <div class="summary-card"><div class="icon">📊</div><div class="value value-blue" id="total-compared">—</div><div class="label">Requests Compared</div></div>
+      <div class="summary-card"><div class="icon">⚡</div><div class="value value-green" id="avg-improvement">—</div><div class="label">Avg. ETA Improvement</div></div>
+      <div class="summary-card"><div class="icon">⏱️</div><div class="value value-yellow" id="avg-time-saved">—</div><div class="label">Avg. Time Saved</div></div>
+      <div class="summary-card"><div class="icon">🏆</div><div class="value value-red" id="max-improvement">—</div><div class="label">Best Improvement</div></div>
+    </div>
+
+    <!-- Map + Request Selector -->
+    <div class="map-section">
+      <div id="comparison-map"></div>
+      <div class="map-controls glass-panel">
+        <h3>Emergency Requests</h3>
+        <p style="font-size: 11px; color: #475569; margin-bottom: 12px;">Click a request to view its baseline vs optimized route on the map</p>
+        <div class="request-list" id="request-list"></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card glass-panel">
+        <h3>ETA Comparison (Top 20)</h3>
+        <div class="bar-chart" id="eta-chart"></div>
+      </div>
+      <div class="chart-card glass-panel">
+        <h3>Improvement Distribution</h3>
+        <div id="distribution-chart" style="padding: 20px;"></div>
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="table-card glass-panel">
+      <h3>Detailed Results</h3>
+      <div style="overflow-x: auto;">
+        <table id="results-table">
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Area</th>
+              <th>Type</th>
+              <th>Severity</th>
+              <th>Baseline ETA</th>
+              <th>Optimized ETA</th>
+              <th>Time Saved</th>
+              <th>Improvement</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let comparisonData = null;
+    let comparisonMap = null;
+    let routeLayers = [];
+
+    // ── Initialize Map ──
+    comparisonMap = L.map('comparison-map', {
+      center: [13.05, 80.22], zoom: 12, zoomControl: true, attributionControl: false,
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd',
+    }).addTo(comparisonMap);
+
+    // ── Load Data ──
+    async function loadComparison() {
+      try {
+        const res = await fetch('/api/visualization/batch-comparison?count=50');
+        comparisonData = await res.json();
+        renderSummary();
+        renderRequestList();
+        renderEtaChart();
+        renderDistributionChart();
+        renderResultsTable();
+        document.getElementById('loading').classList.add('hidden');
+
+        // Show first result on map
+        if (comparisonData.results.length > 0) {
+          showOnMap(0);
+        }
+      } catch (err) {
+        document.querySelector('#loading p').textContent = 'Failed to load comparison data.';
+        console.error(err);
+      }
+    }
+
+    function renderSummary() {
+      document.getElementById('total-compared').textContent = comparisonData.totalCompared;
+      document.getElementById('avg-improvement').textContent = comparisonData.avgImprovementPct + '%';
+      document.getElementById('avg-time-saved').textContent = comparisonData.avgTimeSavedMin + ' min';
+      document.getElementById('max-improvement').textContent = comparisonData.maxImprovementPct + '%';
+    }
+
+    function renderRequestList() {
+      const list = document.getElementById('request-list');
+      list.innerHTML = '';
+      comparisonData.results.forEach((r, idx) => {
+        const impClass = r.etaImprovementPct > 0 ? 'improvement-positive' : 'improvement-negative';
+        const div = document.createElement('div');
+        div.className = 'request-item';
+        div.id = `req-${idx}`;
+        div.innerHTML = `
+          <div class="req-id">${r.requestId}</div>
+          <div class="req-detail">
+            <span>${r.area || 'Unknown'} • ${r.emergencyType}</span>
+            <span class="improvement-badge ${impClass}">${r.etaImprovementPct > 0 ? '+' : ''}${r.etaImprovementPct}%</span>
+          </div>
+          <div class="req-detail" style="margin-top: 4px;">
+            <span style="color:#f87171;">Baseline: ${r.baselineEtaMin} min</span>
+            <span style="color:#34d399;">Optimized: ${r.optimizedEtaMin} min</span>
+          </div>
+        `;
+        div.onclick = () => showOnMap(idx);
+        list.appendChild(div);
+      });
+    }
+
+    function showOnMap(idx) {
+      // Clear previous
+      routeLayers.forEach(l => comparisonMap.removeLayer(l));
+      routeLayers = [];
+      document.querySelectorAll('.request-item').forEach(el => el.classList.remove('selected'));
+      document.getElementById(`req-${idx}`).classList.add('selected');
+
+      const r = comparisonData.results[idx];
+
+      // Baseline route (red dashed)
+      if (r.baselineRoute && r.baselineRoute.length > 0) {
+        const bl = L.polyline(r.baselineRoute.map(c => [c.latitude, c.longitude]), {
+          color: '#f87171', weight: 4, opacity: 0.7, dashArray: '12 6',
+        }).addTo(comparisonMap);
+        routeLayers.push(bl);
+      }
+
+      // Optimized route (green)
+      if (r.optimizedRoute && r.optimizedRoute.length > 0) {
+        const ol = L.polyline(r.optimizedRoute.map(c => [c.latitude, c.longitude]), {
+          color: '#34d399', weight: 5, opacity: 0.9,
+        }).addTo(comparisonMap);
+        routeLayers.push(ol);
+        comparisonMap.fitBounds(ol.getBounds().pad(0.3));
+      }
+
+      // Origin marker
+      const originMarker = L.circleMarker([r.origin.latitude, r.origin.longitude], {
+        radius: 10, fillColor: '#fbbf24', color: '#fff', weight: 2, fillOpacity: 1,
+      }).addTo(comparisonMap).bindPopup(`<b>Emergency</b><br>${r.requestId}<br>${r.emergencyType} — ${r.severity}`);
+      routeLayers.push(originMarker);
+
+      // Destination marker
+      const destMarker = L.circleMarker([r.destination.latitude, r.destination.longitude], {
+        radius: 10, fillColor: '#3b82f6', color: '#fff', weight: 2, fillOpacity: 1,
+      }).addTo(comparisonMap).bindPopup(`<b>Hospital</b><br>${r.hospitalName}`);
+      routeLayers.push(destMarker);
+    }
+
+    function renderEtaChart() {
+      const chart = document.getElementById('eta-chart');
+      const sorted = [...comparisonData.results].sort((a, b) => b.etaImprovementPct - a.etaImprovementPct).slice(0, 20);
+      const maxEta = Math.max(...sorted.map(r => Math.max(r.baselineEtaMin, r.optimizedEtaMin)), 1);
+
+      chart.innerHTML = sorted.map(r => `
+        <div style="margin-bottom: 4px;">
+          <div style="font-size: 10px; color: #64748b; margin-bottom: 2px;">${r.requestId} (${r.area || '?'})</div>
+          <div class="bar-row">
+            <div class="bar-label" style="color:#f87171;">Baseline</div>
+            <div class="bar-container">
+              <div class="bar-fill bar-baseline" style="width: ${(r.baselineEtaMin / maxEta) * 100}%">${r.baselineEtaMin}m</div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label" style="color:#34d399;">Optimized</div>
+            <div class="bar-container">
+              <div class="bar-fill bar-optimized" style="width: ${(r.optimizedEtaMin / maxEta) * 100}%">${r.optimizedEtaMin}m</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderDistributionChart() {
+      const container = document.getElementById('distribution-chart');
+      const buckets = { '<0%': 0, '0-5%': 0, '5-10%': 0, '10-20%': 0, '20-30%': 0, '30%+': 0 };
+      for (const r of comparisonData.results) {
+        const imp = r.etaImprovementPct;
+        if (imp < 0) buckets['<0%']++;
+        else if (imp < 5) buckets['0-5%']++;
+        else if (imp < 10) buckets['5-10%']++;
+        else if (imp < 20) buckets['10-20%']++;
+        else if (imp < 30) buckets['20-30%']++;
+        else buckets['30%+']++;
+      }
+
+      const max = Math.max(...Object.values(buckets), 1);
+      const colors = ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#34d399', '#22d3ee'];
+      let html = '';
+      let i = 0;
+      for (const [label, count] of Object.entries(buckets)) {
+        html += `
+          <div class="bar-row" style="margin-bottom: 8px;">
+            <div class="bar-label">${label}</div>
+            <div class="bar-container">
+              <div class="bar-fill" style="width: ${(count / max) * 100}%; background: ${colors[i]};">${count}</div>
+            </div>
+            <div class="bar-value">${count} reqs</div>
+          </div>
+        `;
+        i++;
+      }
+      container.innerHTML = html;
+    }
+
+    function renderResultsTable() {
+      const tbody = document.getElementById('results-body');
+      tbody.innerHTML = comparisonData.results.map(r => `
+        <tr>
+          <td style="font-weight: 600; color: #60a5fa;">${r.requestId}</td>
+          <td>${r.area || '—'}</td>
+          <td><span class="type-badge type-${r.emergencyType}">${r.emergencyType}</span></td>
+          <td>${r.severity || '—'}</td>
+          <td style="color: #f87171; font-weight: 600;">${r.baselineEtaMin} min</td>
+          <td style="color: #34d399; font-weight: 600;">${r.optimizedEtaMin} min</td>
+          <td style="color: #fbbf24; font-weight: 600;">${r.timeSavedMin} min</td>
+          <td>
+            <span class="improvement-badge ${r.etaImprovementPct > 0 ? 'improvement-positive' : 'improvement-negative'}">
+              ${r.etaImprovementPct > 0 ? '+' : ''}${r.etaImprovementPct}%
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // ── Init ──
+    loadComparison();
+  </script>
+</body>
+</html>

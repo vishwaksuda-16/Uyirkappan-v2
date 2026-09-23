@@ -13,7 +13,25 @@ class EmergencyController {
       status: result.status,
       assignmentId: result.assignmentId,
       ambulanceId: result.ambulanceId,
+      driverId: result.driverId,
+      driverName: result.driverName,
+      driverPhone: result.driverPhone,
+      assignedDriverName: result.assignedDriverName,
+      destinationHospitalId: result.destinationHospitalId,
       eta: result.eta,
+      decisionReason: result.decisionReason,
+      route: result.route,
+      alternativeRoutes: result.alternativeRoutes,
+      baselineRoute: result.baselineRoute,
+      baselineEta: result.baselineEta,
+      baselineDistance: result.baselineDistance,
+      baselineAmbulanceId: result.baselineAmbulanceId,
+      etaImprovementPct: result.etaImprovementPct,
+      cost: result.cost,
+      score: result.score,
+      costBreakdown: result.costBreakdown,
+      scoreBreakdown: result.scoreBreakdown,
+      candidates: result.candidates,
     });
   }
 
@@ -23,7 +41,7 @@ class EmergencyController {
       const amb = await this.store.getAmbulanceByDriverId(user.id);
       return !!amb && amb.currentRequestId === request.requestId;
     }
-    if (user.role === 'HOSPITAL_STAFF') return request.destinationHospitalId === user.hospitalId;
+    if (user.role === 'HOSPITAL_STAFF') return true;
     return false;
   }
 
@@ -59,12 +77,23 @@ class EmergencyController {
         location: ambulance ? ambulance.currentLocation : null,
         eta: request.currentETA,
         status: request.status,
+        route: request.route || null,
+        alternativeRoutes: request.alternativeRoutes || [],
+        candidateRoutes: request.candidateRoutes || [],
+        decisionReason: request.routeReason || null,
       },
     });
   }
 
   async serialize(request) {
     const attempts = await this.store.getAttemptsByRequestId(request.requestId);
+    const ambulance = request.assignedAmbulanceId ? await this.store.getAmbulanceById(request.assignedAmbulanceId) : null;
+    const { datasetLoader } = require('../data/datasetLoader');
+    if (!datasetLoader.loaded) datasetLoader.loadAll();
+    const driver = ambulance?.driverId
+      ? datasetLoader.drivers?.find((d) => d.id === ambulance.driverId || d.assignedAmbulanceId === ambulance.id)
+      : null;
+
     return {
       requestId: request.requestId,
       emergencyType: request.emergencyType,
@@ -72,8 +101,17 @@ class EmergencyController {
       pickupLocation: request.pickupLocation,
       destinationHospitalId: request.destinationHospitalId,
       assignedAmbulanceId: request.assignedAmbulanceId,
+      ambulanceId: request.assignedAmbulanceId,
+      driverId: ambulance?.driverId || null,
+      driverName: driver?.name || null,
+      driverPhone: driver?.phone || null,
+      assignedDriverName: driver?.name || null,
       status: request.status,
       eta: request.currentETA,
+      route: request.route || null,
+      alternativeRoutes: request.alternativeRoutes || [],
+      candidateRoutes: request.candidateRoutes || [],
+      decisionReason: request.routeReason || null,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
       completedAt: request.completedAt,

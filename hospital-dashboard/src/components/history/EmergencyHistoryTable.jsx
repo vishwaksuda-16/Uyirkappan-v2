@@ -229,7 +229,7 @@ export function EmergencyHistoryTable({ history = [] }) {
                   {/* Action */}
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                     <button
-                      onClick={() => navigate(`/emergencies/${item.requestId}`)}
+                      onClick={() => navigate(`/emergency/${item.requestId}`)}
                       title="View case dossier"
                       style={{
                         display: 'inline-flex',

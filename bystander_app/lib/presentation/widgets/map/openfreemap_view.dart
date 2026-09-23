@@ -12,6 +12,8 @@ class OpenFreeMapView extends StatelessWidget {
   final double? heading;
   final String? ambulanceId;
   final List<LocationData>? routeWaypoints;
+  final List<List<LocationData>>? alternativeRoutes;
+  final List<String>? alternativeLabels;
   final List<NearbyHospital>? nearbyHospitals;
   final List<NearbyAmbulance>? nearbyAmbulances;
   final OpenFreeMapStyle style;
@@ -27,6 +29,8 @@ class OpenFreeMapView extends StatelessWidget {
     this.heading,
     this.ambulanceId,
     this.routeWaypoints,
+    this.alternativeRoutes,
+    this.alternativeLabels,
     this.nearbyHospitals,
     this.nearbyAmbulances,
     this.style = OpenFreeMapStyle.bright,
@@ -48,6 +52,8 @@ class OpenFreeMapView extends StatelessWidget {
       heading: heading,
       ambulanceId: ambulanceId,
       routeWaypoints: routeWaypoints,
+      alternativeRoutes: alternativeRoutes,
+      alternativeLabels: alternativeLabels,
       nearbyHospitals: nearbyHospitals,
       nearbyAmbulances: nearbyAmbulances,
       style: style,

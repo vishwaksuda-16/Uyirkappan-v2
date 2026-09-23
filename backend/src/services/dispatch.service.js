@@ -10,6 +10,23 @@ class DispatchService {
   }
 
   /**
+   * Hard backend check: An ambulance/driver is eligible ONLY if status is AVAILABLE,
+   * with no active emergency, no current request, no active assignment, and driver has no active trip.
+   */
+  async isEligibleForAssignment(amb) {
+    if (!amb) return false;
+    if (amb.status !== 'AVAILABLE') return false;
+    if (amb.currentRequestId != null || amb.activeEmergencyId != null || amb.currentAssignmentId != null) {
+      return false;
+    }
+    if (amb.driverId && typeof this.store.getActiveAssignmentForDriver === 'function') {
+      const activeAssn = await this.store.getActiveAssignmentForDriver(amb.driverId);
+      if (activeAssn) return false;
+    }
+    return true;
+  }
+
+  /**
    * Find the best ambulance using Intelligent Matcher
    * Replaces the mock "first available" implementation
    */
@@ -19,16 +36,14 @@ class DispatchService {
 
     // ✅ Convert store ambulance data to matcher format
     const allAmbulances = await this.store.getAmbulances();
+    const eligibilityResults = await Promise.all(
+      allAmbulances.map(async (amb) => ({ amb, isEligible: await this.isEligibleForAssignment(amb) }))
+    );
 
-    const matcherAmbulances = allAmbulances.map((amb) => ({
+    const matcherAmbulances = eligibilityResults.map(({ amb, isEligible }) => ({
       ambulanceId: amb.id,
       currentLocation: amb.currentLocation,
-      availabilityStatus:
-        amb.status === 'AVAILABLE'
-          ? 'AVAILABLE'
-          : amb.status === 'BUSY'
-            ? 'BUSY'
-            : 'OFFLINE',
+      availabilityStatus: isEligible ? 'AVAILABLE' : (amb.status === 'OFFLINE' ? 'OFFLINE' : 'BUSY'),
       driverId: amb.driverId,
       capabilities: amb.capabilities || [],
     }));
@@ -46,6 +61,11 @@ class DispatchService {
     // ✅ Call Matcher's dispatch engine
     try {
       const excludedSet = new Set(excludedAmbulanceIds);
+      for (const { amb, isEligible } of eligibilityResults) {
+        if (!isEligible) {
+          excludedSet.add(amb.id);
+        }
+      }
 
       // Use the dispatch engine service
       const decision = matcher.dispatchEngineService.dispatch(
@@ -54,6 +74,34 @@ class DispatchService {
         50, // search radius in km
         excludedSet
       );
+
+      // Keep the comparison available even when an older matcher build omits it.
+      if (!decision.baselineRoute) {
+        const available = matcherAmbulances.filter((amb) =>
+          amb.availabilityStatus === 'AVAILABLE' && amb.currentLocation
+        );
+        available.sort((a, b) => {
+          const distance = (amb) => {
+            const lat = (amb.currentLocation.latitude - emergencyRequest.pickupLocation.latitude) * 111;
+            const lng = (amb.currentLocation.longitude - emergencyRequest.pickupLocation.longitude) * 108;
+            return Math.hypot(lat, lng);
+          };
+          return distance(a) - distance(b);
+        });
+        const baselineAmbulance = available[0];
+        if (baselineAmbulance) {
+          decision.baselineRoute = matcher.dijkstraService.findDynamicBaselineRoute(
+            baselineAmbulance.currentLocation,
+            emergencyRequest.pickupLocation
+          );
+          decision.baselineEta = Math.max(1, Math.round(decision.baselineRoute.travelTimeMinutes));
+          decision.baselineDistance = decision.baselineRoute.distanceKm;
+          decision.baselineAmbulanceId = baselineAmbulance.ambulanceId;
+          decision.etaImprovementPct = Math.round(
+            ((decision.baselineEta - decision.estimatedTravelTime) / Math.max(1, decision.baselineEta)) * 1000
+          ) / 10;
+        }
+      }
 
       // ✅ Find the original ambulance in your store
       const selectedAmbulance = allAmbulances.find(
@@ -64,13 +112,23 @@ class DispatchService {
         return null;
       }
 
-      // ✅ Return in your backend's expected format
+      // ✅ Return in your backend's expected format with full decision intelligence
       return {
         ambulance: selectedAmbulance,
         estimatedTravelTime: decision.estimatedTravelTime,
         distance: decision.distance || decision.route?.distanceKm || 0,
         score: decision.score || 1.0,
+        scoreBreakdown: decision.scoreBreakdown,
         route: decision.route,
+        alternativeRoutes: decision.alternativeRoutes || [],
+        candidateRoutes: decision.candidateRoutes || [],
+        baselineRoute: decision.baselineRoute || null,
+        baselineEta: decision.baselineEta ?? null,
+        baselineDistance: decision.baselineDistance ?? null,
+        baselineAmbulanceId: decision.baselineAmbulanceId || null,
+        etaImprovementPct: decision.etaImprovementPct ?? null,
+        decisionReason: decision.decisionReason,
+        candidates: decision.candidates || [],
       };
     } catch (error) {
       if (error.message === 'NO_AMBULANCE_AVAILABLE') {

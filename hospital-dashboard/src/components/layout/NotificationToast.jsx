@@ -63,7 +63,7 @@ export function NotificationToast() {
             }}
             onClick={() => {
               if (n.details?.requestId) {
-                navigate(`/emergencies/${n.details.requestId}`);
+                navigate(`/emergency/${n.details.requestId}`);
               }
             }}
           >

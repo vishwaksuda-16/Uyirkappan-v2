@@ -23,6 +23,7 @@ class RealSocketService implements SocketService {
   final _etaUpdatedController = StreamController<int>.broadcast();
   final _routeUpdatedController = StreamController<RouteModel>.broadcast();
   final _hospitalAssignedController = StreamController<Hospital>.broadcast();
+  final _demoAssignmentController = StreamController<Map<String, dynamic>>.broadcast();
 
   RealSocketService({
     required this.config,
@@ -55,6 +56,10 @@ class RealSocketService implements SocketService {
       _hospitalAssignedController.stream;
 
   @override
+  Stream<Map<String, dynamic>> get onDemoAssignmentCreated =>
+      _demoAssignmentController.stream;
+
+  @override
   Future<void> connect() async {
     final token = await storage.getAuthToken();
 
@@ -64,11 +69,11 @@ class RealSocketService implements SocketService {
     _socket?.dispose();
 
     try {
-      // Connect pattern: io('http://localhost:4000', { auth: { token: 'JWT' } })
+      // Connect pattern: io('http://localhost:5000', { auth: { token: 'JWT' } })
       _socket = IO.io(
         config.socketUrl,
         IO.OptionBuilder()
-            .setTransports(['websocket'])
+            .setTransports(['websocket', 'polling'])
             .setAuth({'token': token ?? ''})
             .enableAutoConnect()
             .enableReconnection()
@@ -121,6 +126,12 @@ class RealSocketService implements SocketService {
     _socket!.on('ASSIGNMENT_CANCELLED', (data) {
       _handleAssignmentCancelled(data);
     });
+    _socket!.on('DEMO_RESET', (_) {
+      _assignmentCancelledController.add('ALL');
+    });
+    _socket!.on('SYSTEM_RESET', (_) {
+      _assignmentCancelledController.add('ALL');
+    });
 
     // 3. Listen for ETA_UPDATED
     _socket!.on('ETA_UPDATED', (data) {
@@ -148,6 +159,18 @@ class RealSocketService implements SocketService {
           final hospital = Hospital.fromJson(data);
           _hospitalAssignedController.add(hospital);
         } catch (_) {}
+      }
+    });
+
+    // 6. Demo assignment broadcasts for quick-switching
+    _socket!.on('DEMO_ASSIGNMENT_CREATED', (data) {
+      if (data is Map<String, dynamic>) {
+        _demoAssignmentController.add(Map<String, dynamic>.from(data));
+      }
+    });
+    _socket!.on('ASSIGNMENT_CREATED', (data) {
+      if (data is Map<String, dynamic>) {
+        _demoAssignmentController.add(Map<String, dynamic>.from(data));
       }
     });
   }

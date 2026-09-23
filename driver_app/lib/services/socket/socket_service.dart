@@ -15,6 +15,7 @@ abstract class SocketService {
   Stream<int> get onEtaUpdated;
   Stream<RouteModel> get onRouteUpdated;
   Stream<Hospital> get onHospitalAssigned;
+  Stream<Map<String, dynamic>> get onDemoAssignmentCreated;
 
   // Lifecycle
   Future<void> connect();

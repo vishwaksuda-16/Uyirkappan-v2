@@ -1,4 +1,5 @@
 const { hashPassword } = require('../utils/security');
+const { datasetLoader } = require('./datasetLoader');
 const {
   genUserId, genEmergencyRequestId, genAssignmentId, genAmbulanceId,
   genHospitalId, genAttemptId, genLocationId,
@@ -38,7 +39,18 @@ class MemoryStore {
   findUserByPhone(phone) { return this.users.find((u) => u.phone === phone); }
   findUserById(id) { return this.users.find((u) => u.id === id); }
   findUserByEmailOrPhone(email, phone) {
-    if (email) { const u = this.findUserByEmail(email); if (u) return u; }
+    if (email) {
+      const lower = String(email).trim().toLowerCase();
+      const norm = lower.replace(/-/g, '').replace('@uyirkappan.demo', '');
+      const u = this.users.find((x) => {
+        if (!x) return false;
+        if (x.email && x.email.toLowerCase() === lower) return true;
+        if (x.id && (x.id.toLowerCase() === lower || x.id.toLowerCase().replace(/-/g, '') === norm)) return true;
+        if (x.ambulanceId && (x.ambulanceId.toLowerCase() === lower || x.ambulanceId.toLowerCase().replace(/-/g, '') === norm)) return true;
+        return false;
+      });
+      if (u) return u;
+    }
     if (phone) return this.findUserByPhone(phone);
     return null;
   }
@@ -46,15 +58,30 @@ class MemoryStore {
   // ------------------------------------------------------------ ambulances
   getAmbulances() { return this.ambulances; }
   getAmbulanceById(id) { return this.ambulances.find((a) => a.id === id); }
-  getAmbulanceByDriverId(driverId) { return this.ambulances.find((a) => a.driverId === driverId); }
+  getAmbulanceByDriverId(driverId) {
+    let amb = this.ambulances.find((a) => a.driverId === driverId);
+    if (!amb) {
+      const user = this.users.find((u) => u.id === driverId);
+      if (user?.ambulanceId) {
+        amb = this.ambulances.find((a) => a.id === user.ambulanceId);
+      }
+    }
+    return amb;
+  }
   updateAmbulance(id, patch) {
     const a = this.getAmbulanceById(id);
     if (!a) return null;
     Object.assign(a, patch, { updatedAt: new Date() });
     return a;
   }
-  updateAmbulanceStatus(id, status) { return this.updateAmbulance(id, { status }); }
-  releaseAmbulance(id) { return this.updateAmbulance(id, { status: 'AVAILABLE', currentRequestId: null }); }
+  releaseAmbulance(id) {
+    return this.updateAmbulance(id, {
+      status: 'AVAILABLE',
+      currentRequestId: null,
+      activeEmergencyId: null,
+      currentAssignmentId: null,
+    });
+  }
   updateAmbulanceLocation(id, { latitude, longitude, speed, heading }) {
     return this.updateAmbulance(id, {
       currentLocation: { latitude, longitude },
@@ -140,10 +167,25 @@ class MemoryStore {
       ambulanceId: ambulance.id,
       attemptNumber,
       status: 'PENDING',
-      estimatedETA: selection.estimatedTravelTime,
+      estimatedETA: selection ? selection.estimatedTravelTime : 10,
       assignedAt: now,
       expiresAt: new Date(now.getTime() + this.config.driverResponseTimeoutMs),
       responseAt: null,
+      route: selection?.route || null,
+      alternativeRoutes: selection?.alternativeRoutes || [],
+      candidateRoutes: selection?.candidateRoutes || [],
+      destinationHospital: selection?.destinationHospital || null,
+      hospitalRoute: selection?.hospitalRoute || null,
+      baselineRoute: selection?.baselineRoute || null,
+      baselineEta: selection?.baselineEta || null,
+      baselineDistance: selection?.baselineDistance || null,
+      etaImprovementPct: selection?.etaImprovementPct || null,
+      distanceKm: selection?.distance || selection?.route?.distanceKm || 0,
+      decisionReason: selection?.decisionReason || null,
+      scoreBreakdown: selection?.scoreBreakdown || null,
+      costBreakdown: selection?.costBreakdown || null,
+      cost: selection?.cost,
+      score: selection?.score,
       createdAt: now,
       updatedAt: now,
     };
@@ -165,9 +207,29 @@ class MemoryStore {
   getActiveAssignmentForDriver(driverId) {
     const ambulance = this.getAmbulanceByDriverId(driverId);
     if (!ambulance) return null;
+    const now = new Date();
+    const activeStatuses = [
+      'ACCEPTED',
+      'EN_ROUTE_TO_PATIENT',
+      'ARRIVED_AT_PATIENT',
+      'PATIENT_ONBOARD',
+      'EN_ROUTE_TO_HOSPITAL',
+      'ARRIVED_AT_HOSPITAL',
+    ];
     return this.assignments
-      .filter((a) => a.ambulanceId === ambulance.id && ['PENDING', 'ACCEPTED'].includes(a.status))
-      .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime())[0];
+      .filter((a) => {
+        if (a.ambulanceId !== ambulance.id && a.driverId !== driverId) return false;
+        const req = this.getEmergencyByRequestId(a.requestId);
+        if (!req || ['COMPLETED', 'CANCELLED', 'RESOLVED', 'NO_AMBULANCE_AVAILABLE'].includes(req.status)) {
+          return false;
+        }
+        if (activeStatuses.includes(a.status)) return true;
+        if (a.status === 'PENDING') {
+          return !a.expiresAt || a.expiresAt > now;
+        }
+        return false;
+      })
+      .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime())[0] || null;
   }
   getAssignmentsForRequest(requestId) {
     return this.assignments.filter((a) => a.requestId === requestId);
@@ -207,6 +269,8 @@ class MemoryStore {
     if (this.seeded) return;
     this.seeded = true;
 
+    datasetLoader.loadAll();
+
     const pw = await hashPassword('password123');
     const makeUser = (id, name, email, phone, role, hospitalId) => ({
       id, name, email, phone, role, hospitalId,
@@ -214,45 +278,46 @@ class MemoryStore {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // 1. Standard administrative and demo bystander accounts
     this.users.push(
       makeUser('USER-001', 'Bystander', 'bystander@uyirkappan.demo', '9000000001', 'BYSTANDER', null),
-      makeUser('USER-002', 'Driver 1', 'driver1@uyirkappan.demo', '9000000002', 'DRIVER', null),
-      makeUser('USER-003', 'Driver 2', 'driver2@uyirkappan.demo', '9000000003', 'DRIVER', null),
-      makeUser('USER-004', 'Driver 3', 'driver3@uyirkappan.demo', '9000000004', 'DRIVER', null),
-      makeUser('USER-005', 'Driver 4', 'driver4@uyirkappan.demo', '9000000005', 'DRIVER', null),
-      makeUser('USER-006', 'Driver 5', 'driver5@uyirkappan.demo', '9000000006', 'DRIVER', null),
-      makeUser('USER-007', 'Hospital Staff', 'staff@uyirkappan.demo', '9000000007', 'HOSPITAL_STAFF', 'HOSP-01'),
-      makeUser('USER-008', 'Admin', 'admin@uyirkappan.demo', '9000000008', 'ADMIN', null)
+      makeUser('USER-008', 'Admin', 'admin@uyirkappan.demo', '9000000008', 'ADMIN', null),
+      makeUser('USER-007', 'Hospital Staff', 'staff@uyirkappan.demo', '9000000007', 'HOSPITAL_STAFF', 'H001')
     );
 
-    const makeHospital = (id, name, lat, lng, generalBeds, icuBeds, ventilators) => ({
-      id, name,
-      location: { latitude: lat, longitude: lng },
-      resources: { generalBeds, icuBeds, ventilators },
+    // 2. Staff accounts for each of the 30 hospitals
+    for (const h of datasetLoader.hospitals) {
+      this.users.push(
+        makeUser(`STAFF-${h.id}`, `${h.name} Staff`, `staff.${h.id.toLowerCase()}@uyirkappan.demo`, '9000000007', 'HOSPITAL_STAFF', h.id)
+      );
+    }
+
+    // 3. Driver accounts for all 131 fleet drivers
+    for (const d of datasetLoader.drivers) {
+      const u = makeUser(d.id, d.name, `${d.id.toLowerCase()}@uyirkappan.demo`, d.phone, 'DRIVER', null);
+      u.ambulanceId = d.assignedAmbulanceId;
+      this.users.push(u);
+    }
+
+    // Legacy driver1@… aliases are resolved by AuthController to the
+    // canonical dataset accounts.  Do not insert duplicate user IDs here:
+    // duplicate IDs make token-to-user lookup ambiguous.
+
+    // 4. Ingest the 30 canonical hospitals
+    this.hospitals = datasetLoader.hospitals.map(h => ({
+      ...h,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
-    this.hospitals.push(
-      makeHospital('HOSP-01', 'Apollo Hospital', 13.0327, 80.2207, 20, 6, 3),
-      makeHospital('HOSP-02', 'Metro Hospital', 13.0727, 80.2407, 25, 8, 4),
-      makeHospital('HOSP-03', 'Fortis Hospital', 13.0827, 80.2707, 30, 10, 5)
-    );
+    }));
 
-    const makeAmbulance = (id, number, driverId, lat, lng) => ({
-      id, ambulanceNumber: number, driverId,
-      currentLocation: { latitude: lat, longitude: lng },
-      currentSpeed: 0, currentHeading: 0,
-      status: 'AVAILABLE', capabilities: ['ICU', 'OXYGEN'],
-      currentRequestId: null,
-      createdAt: new Date(), updatedAt: new Date(),
-    });
-    this.ambulances.push(
-      makeAmbulance('AMB-01', 'TN-01-A-4444', 'USER-002', 13.0027, 80.1707),
-      makeAmbulance('AMB-02', 'TN-01-B-5555', 'USER-003', 13.0527, 80.2207),
-      makeAmbulance('AMB-03', 'TN-01-C-6666', 'USER-004', 13.1027, 80.3007),
-      makeAmbulance('AMB-04', 'TN-01-D-7777', 'USER-005', 13.1127, 80.3107),
-      makeAmbulance('AMB-05', 'TN-01-E-8888', 'USER-006', 13.1227, 80.3207)
-    );
+    // 5. Ingest the 131 fleet ambulances
+    this.ambulances = datasetLoader.ambulances.map(a => ({
+      ...a,
+      ambulanceNumber: a.ambulanceId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
 
     setUserIdCounter(this.users.length);
     setHospitalCounter(this.hospitals.length);

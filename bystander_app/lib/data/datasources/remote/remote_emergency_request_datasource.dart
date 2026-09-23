@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../core/constants/api_constants.dart';
 import '../../../core/errors/exceptions.dart';
+import '../../../domain/entities/emergency_type.dart';
+import '../../../domain/entities/location_data.dart';
 import '../../models/emergency_request_model.dart';
 import '../../../domain/entities/request_status.dart';
 import '../emergency_request_datasource.dart';
@@ -93,6 +95,40 @@ class RemoteEmergencyRequestDataSource implements EmergencyRequestDataSource {
       throw NetworkException('Network error fetching request: $e');
     }
     throw const ServerException('Unknown error fetching request');
+  }
+
+  @override
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  }) async {
+    final uri = Uri.parse('$baseUrl${ApiConstants.recommendHospital}');
+    try {
+      final headers = await _getHeaders();
+      final response = await client.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({
+          'emergencyType': emergencyType.code,
+          'victimCount': victimCount,
+          'pickupLocation': {
+            'latitude': emergencyLocation.latitude,
+            'longitude': emergencyLocation.longitude,
+          },
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final hospitalId = body['selectedHospitalId'] as String? ?? body['selectedHospital']?['id'] as String?;
+        return hospitalId;
+      }
+
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

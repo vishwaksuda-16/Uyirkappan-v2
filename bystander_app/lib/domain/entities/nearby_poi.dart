@@ -133,8 +133,47 @@ class NearbyEmergencyService {
     return 12742 * math.asin(math.sqrt(math.max(0.0, a))); // 2 * R; R = 6371 km
   }
 
-  /// 30 FIXED HOSPITALS from verified CSV dataset. Coordinates NEVER change.
+  /// FIXED HOSPITALS including canonical emergency centres (HOSP-01, HOSP-02, HOSP-03).
   static const List<NearbyHospital> fixedHospitals = [
+    NearbyHospital(
+      id: 'HOSP-01',
+      name: 'Apollo Trauma & Emergency Center',
+      latitude: 13.0585,
+      longitude: 80.2505,
+      address: '21 Greams Lane, Thousand Lights, Chennai',
+      distanceKm: 0.0,
+      emergencyBeds: 28,
+      emergencyType: 'Level-1 24/7 Trauma & Cardiac Emergency Center',
+      area: 'Thousand Lights',
+      ownership: 'Private',
+      priority: 'Highest',
+    ),
+    NearbyHospital(
+      id: 'HOSP-02',
+      name: 'Metro Hospital',
+      latitude: 13.0727,
+      longitude: 80.2407,
+      address: 'Poonamallee High Road, Kilpauk, Chennai',
+      distanceKm: 0.0,
+      emergencyBeds: 25,
+      emergencyType: 'Multispeciality Emergency Bay',
+      area: 'Kilpauk',
+      ownership: 'Private',
+      priority: 'High',
+    ),
+    NearbyHospital(
+      id: 'HOSP-03',
+      name: 'Fortis Hospital',
+      latitude: 13.0827,
+      longitude: 80.2707,
+      address: 'EVR Periyar Salai, Park Town, Chennai',
+      distanceKm: 0.0,
+      emergencyBeds: 30,
+      emergencyType: 'Advanced Emergency & Critical Care',
+      area: 'Park Town',
+      ownership: 'Private',
+      priority: 'High',
+    ),
     NearbyHospital(
       id: 'H001',
       name: 'Rajiv Gandhi Government General Hospital',
@@ -1055,7 +1094,7 @@ class NearbyEmergencyService {
     return best;
   }
 
-  /// Finds the geographically closest hospital from the 30 fixed hospitals.
+  /// Finds the geographically closest hospital from the fixed hospitals.
   static NearbyHospital findNearestHospital(double lat, double lng) {
     NearbyHospital best = fixedHospitals.first;
     double bestDist = double.infinity;
@@ -1067,6 +1106,29 @@ class NearbyEmergencyService {
       }
     }
     return best;
+  }
+
+  /// Finds a hospital matching the provided ID or name, prioritizing canonical 'HOSP-01'.
+  static NearbyHospital findHospitalByIdOrName(String? idOrName) {
+    if (idOrName == null || idOrName.isEmpty) {
+      return fixedHospitals.first;
+    }
+    final query = idOrName.toLowerCase().trim();
+    for (final h in fixedHospitals) {
+      if (h.id.toLowerCase() == query ||
+          h.name.toLowerCase() == query ||
+          (query == 'h1' && h.id == 'HOSP-01') ||
+          (query.contains('hosp-01') && h.id == 'HOSP-01') ||
+          (query.contains('apollo') && h.id == 'HOSP-01')) {
+        return h;
+      }
+    }
+    for (final h in fixedHospitals) {
+      if (h.name.toLowerCase().contains(query) || query.contains(h.name.toLowerCase())) {
+        return h;
+      }
+    }
+    return fixedHospitals.first;
   }
 
   /// Backwards-compatible aliases for existing controllers and views.

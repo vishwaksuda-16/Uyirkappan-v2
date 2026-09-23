@@ -10,7 +10,7 @@ class AmbulanceService {
   }
 
   ownsAmbulance(user, ambulance) {
-    return user.role === 'ADMIN' || ambulance.driverId === user.id;
+    return user.role === 'ADMIN' || ambulance.driverId === user.id || user.ambulanceId === ambulance.id;
   }
 
   async updateStatus(ambulanceId, body, user) {
@@ -49,9 +49,22 @@ class AmbulanceService {
       const request = await this.store.getEmergencyByRequestId(ambulance.currentRequestId);
       eta = await this.etaService.simulateEta(request, ambulance);
       await this.store.updateEmergencyETA(request.requestId, eta);
-      this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'AMBULANCE_LOCATION_UPDATED', {
-        ambulanceId, latitude, longitude,
-      });
+
+      const locPayload = {
+        ambulanceId,
+        requestId: request.requestId,
+        latitude,
+        longitude,
+        speed: speed ?? 0,
+        heading: heading ?? 0,
+        status: ambulance.status,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'AMBULANCE_LOCATION_UPDATED', locPayload);
+      if (request.destinationHospitalId) {
+        this.notificationService.emitToRoom(`hospital:${request.destinationHospitalId}`, 'AMBULANCE_LOCATION_UPDATED', locPayload);
+      }
       this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'ETA_UPDATED', {
         requestId: request.requestId, etaMinutes: eta,
       });

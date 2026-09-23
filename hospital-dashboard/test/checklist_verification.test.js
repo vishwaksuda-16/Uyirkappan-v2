@@ -105,7 +105,7 @@ try {
   const loginResp = await apiClient.post('/auth/login', {
     email: 'staff@uyirkappan.demo',
     password: 'password123',
-    hospitalId: 'HOSP-01',
+    hospitalId: 'H001',
   });
   _authToken = loginResp?.token || loginResp?.jwt || loginResp?.accessToken || loginResp?.data?.token;
   if (_authToken) {
@@ -205,14 +205,14 @@ test('3.1: Resource endpoints match GET/PATCH /api/hospitals/{hospitalId}/resour
 });
 
 asyncTest('3.2: hospitalApi.getResources returns resource counts', async () => {
-  const res = await hospitalApi.getResources('HOSP-01');
+  const res = await hospitalApi.getResources('H001');
   assert.ok(res.generalBeds !== undefined);
   assert.ok(res.icuBeds !== undefined);
   assert.ok(res.ventilators !== undefined);
 });
 
 asyncTest('3.3: hospitalApi.updateResources updates counts and enforces payload shape', async () => {
-  const updated = await hospitalApi.updateResources('HOSP-01', {
+  const updated = await hospitalApi.updateResources('H001', {
     generalBeds: 16,
     icuBeds: 4,
     ventilators: 3,
@@ -233,12 +233,12 @@ test('3.4: Resource validator validates integers and rejects negatives', () => {
 // 5 & 6. Incoming Emergencies & History
 console.log('\n--- SECTION 5 & 6: Incoming Emergencies & History ---');
 test('5.1: Incoming and History API endpoints match contracts', () => {
-  assert.equal(API_ENDPOINTS.HOSPITAL_INCOMING('HOSP-01'), '/hospitals/HOSP-01/incoming');
-  assert.equal(API_ENDPOINTS.HOSPITAL_HISTORY('HOSP-01'), '/hospitals/HOSP-01/emergency-history');
+  assert.equal(API_ENDPOINTS.HOSPITAL_INCOMING('H001'), '/hospitals/H001/incoming');
+  assert.equal(API_ENDPOINTS.HOSPITAL_HISTORY('H001'), '/hospitals/H001/emergency-history');
 });
 
 asyncTest('5.2: hospitalApi.getIncomingEmergencies returns active inbound cases', async () => {
-  const list = await hospitalApi.getIncomingEmergencies('HOSP-01');
+  const list = await hospitalApi.getIncomingEmergencies('H001');
   assert.ok(Array.isArray(list), 'incoming should be an array');
   // Length may be 0 if no active emergencies are present in the DB
   if (list.length > 0) {
@@ -247,7 +247,7 @@ asyncTest('5.2: hospitalApi.getIncomingEmergencies returns active inbound cases'
 });
 
 asyncTest('6.1: hospitalApi.getEmergencyHistory returns past cases with timestamps', async () => {
-  const history = await hospitalApi.getEmergencyHistory('HOSP-01');
+  const history = await hospitalApi.getEmergencyHistory('H001');
   assert.ok(Array.isArray(history), 'history should be an array');
   // Length may be 0 if no completed emergencies are present in the DB
   if (history.length > 0) {
@@ -264,7 +264,7 @@ test('7.1: Details and Tracking endpoints match contracts', () => {
 
 asyncTest('7.2: emergencyApi.getEmergencyDetails returns dossier with attempt history', async () => {
   // Use a real requestId from the DB if available; otherwise pass (API contract is tested by 7.1)
-  const incoming = await hospitalApi.getIncomingEmergencies('HOSP-01');
+  const incoming = await hospitalApi.getIncomingEmergencies('H001');
   if (!incoming || incoming.length === 0) {
     // No active emergencies to test against — API contract verified; skip deep assertions
     return;
@@ -279,7 +279,7 @@ asyncTest('7.2: emergencyApi.getEmergencyDetails returns dossier with attempt hi
 
 asyncTest('8.1: emergencyApi.getEmergencyTracking returns location { latitude, longitude }', async () => {
   // Use a real requestId from the DB if available; otherwise pass (API contract is tested by 7.1)
-  const incoming = await hospitalApi.getIncomingEmergencies('HOSP-01');
+  const incoming = await hospitalApi.getIncomingEmergencies('H001');
   if (!incoming || incoming.length === 0) {
     // No active emergencies to test against — API contract verified; skip deep assertions
     return;

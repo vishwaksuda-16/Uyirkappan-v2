@@ -105,6 +105,9 @@ enum DriverLifecycleState {
         return DriverLifecycleState.rejected;
       case 'TIMEOUT':
         return DriverLifecycleState.timeout;
+      case 'PENDING':
+      case 'ASSIGNED':
+      case 'NEW':
       case 'ASSIGNMENT_RECEIVED':
         return DriverLifecycleState.assignmentReceived;
       case 'AVAILABLE':

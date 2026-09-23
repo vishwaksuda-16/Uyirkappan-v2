@@ -80,7 +80,9 @@ class Driver {
       role: (userMap['role'] as String?) ?? 'DRIVER',
       availability: userMap['availability'] != null
           ? AmbulanceAvailability.fromString(userMap['availability'] as String)
-          : AmbulanceAvailability.offline,
+          : (userMap['status'] != null
+              ? AmbulanceAvailability.fromString(userMap['status'] as String)
+              : AmbulanceAvailability.available),
       token: token,
     );
   }

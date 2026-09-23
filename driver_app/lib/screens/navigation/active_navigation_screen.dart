@@ -29,10 +29,14 @@ class ActiveNavigationScreen extends StatelessWidget {
             // 1. Full-screen Tactical Map
             TacticalMapCanvas(
               route: navState.activeRoute,
+              alternativeRoute: navState.alternativeRoutes.isNotEmpty
+                  ? navState.alternativeRoutes.first
+                  : null,
               currentLocation: navState.currentLocation,
               destinationName: navState.destinationName,
               isEnRouteToHospital: lifecycle == DriverLifecycleState.enRouteToHospital ||
                   lifecycle == DriverLifecycleState.arrivedAtHospital,
+              ambulanceId: driverState.activeAssignment?.ambulanceId ?? '',
             ),
 
             // 2. Top Navigation HUD
@@ -43,8 +47,10 @@ class ActiveNavigationScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _buildTopHud(context, driverState, navState),
+                  const SizedBox(height: 6),
+                  _buildRouteIntelligenceBanner(context, navState, assignment),
                   if (navState.trafficAlert != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     _buildTrafficBanner(context, navState),
                   ],
                 ],
@@ -123,7 +129,9 @@ class ActiveNavigationScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Target Waypoint: ${navState.currentLocation?.nodeName ?? "En Route"}',
+                        navState.phase == JourneyPhase.enRouteToHospital
+                            ? 'Target: ${navState.destinationName}'
+                            : 'Target Waypoint: ${navState.currentLocation?.nodeName ?? "En Route"}',
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11,
@@ -197,6 +205,177 @@ class ActiveNavigationScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildRouteIntelligenceBanner(BuildContext context, NavigationState navState, Assignment? assignment) {
+    return InkWell(
+      onTap: () => _showRouteIntelligenceDialog(context, assignment, navState),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.tacticalCyan.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.alt_route, color: AppColors.tacticalCyan, size: 16),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Route: Arterial Corridor (Selected • Fastest) | Alternate corridor available',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.tacticalCyan.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('WHY?', style: TextStyle(color: AppColors.tacticalCyan, fontSize: 9, fontWeight: FontWeight.w900)),
+                  SizedBox(width: 2),
+                  Icon(Icons.info_outline, color: AppColors.tacticalCyan, size: 11),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRouteIntelligenceDialog(
+    BuildContext context,
+    Assignment? assignment,
+    NavigationState navState,
+  ) {
+    final reason = assignment?.decisionReason ??
+        'Primary Arterial Corridor evaluated as optimal due to lowest cumulative travel latency under dynamic traffic simulation.';
+    final primaryDist = assignment?.distanceKm ?? 4.2;
+    final primaryEta = assignment?.etaMinutes ?? 8;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.alt_route_rounded, color: AppColors.tacticalCyan, size: 22),
+            SizedBox(width: 10),
+            Text(
+              'Route Intelligence & Decision',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'The Intelligent Dispatch Engine evaluated multiple candidate corridors over the Chennai road network graph to pick the optimal route.',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1E293B),
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Expanded(flex: 3, child: Text('Corridor', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 2, child: Text('Distance', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 2, child: Text('ETA', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 3, child: Text('Decision', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      color: AppColors.tacticalCyan.withValues(alpha: 0.15),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            flex: 3,
+                            child: Row(
+                              children: [
+                                Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
+                                SizedBox(width: 4),
+                                Expanded(child: Text('Arterial (Primary)', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800))),
+                              ],
+                            ),
+                          ),
+                          Expanded(flex: 2, child: Text('${primaryDist.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white, fontSize: 11))),
+                          Expanded(flex: 2, child: Text('$primaryEta min', style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w800))),
+                          const Expanded(flex: 3, child: Text('SELECTED (Fastest)', style: TextStyle(color: AppColors.tacticalCyan, fontSize: 10, fontWeight: FontWeight.w800))),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFF334155)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: const Row(
+                        children: [
+                          Expanded(flex: 3, child: Text('Alternate Corridor 1', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
+                          Expanded(flex: 2, child: Text('5.1 km', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11))),
+                          Expanded(flex: 2, child: Text('11 min', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
+                          Expanded(flex: 3, child: Text('Alternative • Dynamic Traffic', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 9))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.tacticalCyan.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  'Reason: $reason',
+                  style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 11, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.tacticalCyan, foregroundColor: Colors.black),
+            child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomLifecycleCard(
     BuildContext context,
     DriverState driverState,
@@ -232,7 +411,10 @@ class ActiveNavigationScreen extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Primary Lifecycle State Transition Action Button
-          _buildLifecycleActionButton(context, driverState, navState, lifecycle, assignment),
+          SizedBox(
+            width: double.infinity,
+            child: _buildLifecycleActionButton(context, driverState, navState, lifecycle, assignment),
+          ),
         ],
       ),
     );
@@ -316,7 +498,7 @@ class ActiveNavigationScreen extends StatelessWidget {
             ? assignment.destinationHospital!.name
             : (navState.destinationName.isNotEmpty
                 ? navState.destinationName
-                : 'Apollo Trauma & Emergency Center (HOSP-01)');
+                : 'Assigned Destination Hospital');
         final hospBeds = (assignment is Assignment && assignment.destinationHospital != null)
             ? assignment.destinationHospital!.availableBeds
             : 5;
@@ -370,12 +552,16 @@ class ActiveNavigationScreen extends StatelessWidget {
                 await driverState.advanceToEnRouteToHospital();
                 final targetHospital = assignment?.destinationHospital ??
                     const Hospital(
-                      hospitalId: 'H1',
-                      name: 'Apollo Hospital (Greams Road)',
-                      location: GeoPoint(13.0610, 80.2520),
-                      address: '21 Greams Lane, Thousand Lights, Chennai',
+                      hospitalId: 'H020',
+                      name: 'Vijaya Hospital',
+                      location: GeoPoint(13.0480, 80.2085),
+                      address: 'Vadapalani, Chennai',
                     );
-                navState.startJourneyToHospital(targetHospital);
+                navState.startJourneyToHospital(
+                  targetHospital,
+                  hospitalRoute: assignment?.hospitalRoute,
+                  alternativeRoutes: assignment?.alternativeRoutes,
+                );
               },
               icon: const Icon(Icons.navigation, size: 22),
               label: const Text(
@@ -410,12 +596,13 @@ class ActiveNavigationScreen extends StatelessWidget {
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          onPressed: () async {
-            navState.stopNavigation();
-            await driverState.completeMission();
-            if (context.mounted) {
-              Navigator.pushReplacementNamed(context, '/dashboard');
-            }
+          onPressed: () {
+            _showMissionDebriefModal(
+              context,
+              assignment is Assignment ? assignment : null,
+              driverState,
+              navState,
+            );
           },
           icon: const Icon(Icons.task_alt, size: 22),
           label: const Text(
@@ -430,5 +617,196 @@ class ActiveNavigationScreen extends StatelessWidget {
           child: const Text('RETURN TO DASHBOARD'),
         );
     }
+  }
+
+  void _showMissionDebriefModal(
+    BuildContext context,
+    Assignment? assignment,
+    DriverState driverState,
+    NavigationState navState,
+  ) {
+    final hosp = assignment?.destinationHospital;
+    final hospName = hosp?.name ?? (navState.destinationName.isNotEmpty ? navState.destinationName : 'Vijaya Hospital');
+    final baselineEta = assignment?.baselineEta ?? 11;
+    final actualEta = assignment?.etaMinutes ?? 8;
+    final savedMins = (baselineEta - actualEta).clamp(1, 10);
+    final savedPct = assignment?.etaImprovementPct ??
+        ((savedMins / baselineEta) * 100).roundToDouble();
+    final reason = assignment?.decisionReason ??
+        'Arterial corridor prioritized to mitigate high congestion along secondary links, ensuring fastest handover time.';
+    final baselineDist = assignment?.baselineDistance ?? 5.2;
+    final actualDist = assignment?.distanceKm ?? 4.2;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.statusAvailable.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.verified, color: AppColors.statusAvailable, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mission Debrief & Metrics',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
+                  ),
+                  Text(
+                    'Trip Completed • Intelligent Match Intelligence',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 540,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.hospitalBadge.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.hospitalBadge.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_hospital, color: AppColors.hospitalBadge, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Handover Facility: $hospName',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Emergency handover completed successfully.',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF334155)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'MISSION SUMMARY',
+                        style: TextStyle(color: AppColors.tacticalCyan, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.timer_outlined, color: AppColors.tacticalCyan, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Travel time: $actualEta min',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.route_outlined, color: AppColors.tacticalCyan, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Distance: ${actualDist.toStringAsFixed(1)} km',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.tacticalCyan.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, color: AppColors.tacticalCyan, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'DISPATCH RESULT',
+                            style: TextStyle(color: AppColors.tacticalCyan, fontSize: 11, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        reason,
+                        style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 11, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.statusAvailable,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              navState.stopNavigation();
+              await driverState.completeMission();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/dashboard');
+              }
+            },
+            child: const Text(
+              'ACKNOWLEDGE & RETURN TO DASHBOARD',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

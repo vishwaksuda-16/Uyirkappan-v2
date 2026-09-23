@@ -20,10 +20,10 @@ export function AmbulanceMap({
     timestamp: new Date().toISOString(),
   };
 
-  const hospitalLocation = {
-    latitude: 13.0604,
-    longitude: 80.2496,
-    name: emergency?.hospitalName || 'Emergency Bay',
+  const hospitalLocation = emergency?.hospitalLocation || {
+    latitude: emergency?.destinationHospital?.location?.latitude || 13.0827,
+    longitude: emergency?.destinationHospital?.location?.longitude || 80.2707,
+    name: emergency?.hospitalName || 'Destination Hospital',
   };
 
   const incidentLocation = emergency?.incidentLocation || {
@@ -45,12 +45,25 @@ export function AmbulanceMap({
     return () => clearInterval(interval);
   }, [currentLocation?.timestamp]);
 
-  // Compute normalized canvas coordinates from GPS bounding box
-  // Points: Incident, Current, Hospital
-  const minLat = Math.min(incidentLocation.latitude, currentLocation.latitude, hospitalLocation.latitude) - 0.005;
-  const maxLat = Math.max(incidentLocation.latitude, currentLocation.latitude, hospitalLocation.latitude) + 0.005;
-  const minLng = Math.min(incidentLocation.longitude, currentLocation.longitude, hospitalLocation.longitude) - 0.005;
-  const maxLng = Math.max(incidentLocation.longitude, currentLocation.longitude, hospitalLocation.longitude) + 0.005;
+  // Compute normalized canvas coordinates from GPS bounding box using the main route and endpoints
+  const allLats = [
+    incidentLocation?.latitude,
+    currentLocation?.latitude,
+    hospitalLocation?.latitude,
+    ...(emergency?.route?.waypoints?.map(wp => wp.latitude) || []),
+  ].filter(lat => typeof lat === 'number' && !isNaN(lat) && lat !== 0);
+
+  const allLngs = [
+    incidentLocation?.longitude,
+    currentLocation?.longitude,
+    hospitalLocation?.longitude,
+    ...(emergency?.route?.waypoints?.map(wp => wp.longitude) || []),
+  ].filter(lng => typeof lng === 'number' && !isNaN(lng) && lng !== 0);
+
+  const minLat = Math.min(...allLats) - 0.005;
+  const maxLat = Math.max(...allLats) + 0.005;
+  const minLng = Math.min(...allLngs) - 0.005;
+  const maxLng = Math.max(...allLngs) + 0.005;
 
   const latRange = maxLat - minLat || 0.01;
   const lngRange = maxLng - minLng || 0.01;
@@ -59,12 +72,21 @@ export function AmbulanceMap({
   const project = (lat, lng) => {
     const x = ((lng - minLng) / lngRange) * 80 + 10;
     const y = ((maxLat - lat) / latRange) * 70 + 15;
-    return { x: Math.max(8, Math.min(92, x)), y: Math.max(12, Math.min(88, y)) };
+    return { x: Math.max(5, Math.min(95, x)), y: Math.max(10, Math.min(90, y)) };
   };
 
   const incidentPos = project(incidentLocation.latitude, incidentLocation.longitude);
   const currentPos = project(currentLocation.latitude, currentLocation.longitude);
   const hospitalPos = project(hospitalLocation.latitude, hospitalLocation.longitude);
+
+  // Dynamic route waypoints from backend
+  const primaryWaypoints = emergency?.route?.waypoints || [];
+  const primaryPoints = primaryWaypoints.length > 1
+    ? primaryWaypoints.map(wp => project(wp.latitude, wp.longitude))
+    : [currentPos, hospitalPos];
+  const primaryPolyline = primaryPoints.map(p => `${p.x},${p.y}`).join(' ');
+
+  const bestEta = emergency?.eta || emergency?.route?.travelTimeMinutes || 6;
 
   return (
     <div
@@ -184,21 +206,44 @@ export function AmbulanceMap({
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
-          {/* Simulated Road Arteries */}
-          <path
-            d={`M ${incidentPos.x}% ${incidentPos.y}% Q ${(incidentPos.x + currentPos.x) / 2}% ${(incidentPos.y + currentPos.y) / 2 + 5}%, ${currentPos.x}% ${currentPos.y}%`}
-            fill="none"
-            stroke="rgba(56, 189, 248, 0.4)"
-            strokeWidth="3"
-            strokeDasharray="4 4"
-          />
-          <path
-            d={`M ${currentPos.x}% ${currentPos.y}% Q ${(currentPos.x + hospitalPos.x) / 2 - 5}% ${(currentPos.y + hospitalPos.y) / 2}%, ${hospitalPos.x}% ${hospitalPos.y}%`}
-            fill="none"
-            stroke="url(#routeGradient)"
-            strokeWidth="4"
-          />
+          {/* Selected dispatch route for the active emergency */}
+          {primaryPolyline && (
+            <polyline
+              points={primaryPolyline}
+              fill="none"
+              stroke="url(#routeGradient)"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
         </svg>
+
+        {/* Selected route badge */}
+        {primaryPoints.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${primaryPoints[Math.floor(primaryPoints.length / 2)].x}%`,
+              top: `${primaryPoints[Math.floor(primaryPoints.length / 2)].y}%`,
+              transform: 'translate(-50%, -50%)',
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              fontSize: '10px',
+              fontWeight: 800,
+              padding: '3px 8px',
+              borderRadius: '10px',
+              border: '1px solid #38bdf8',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+              pointerEvents: 'none',
+              zIndex: 13,
+              letterSpacing: '0.04em',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            SELECTED ROUTE • {bestEta} min
+          </div>
+        )}
 
         {/* Incident Marker */}
         <div

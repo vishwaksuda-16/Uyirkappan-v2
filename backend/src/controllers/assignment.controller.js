@@ -27,10 +27,14 @@ class AssignmentController {
       const status = result.error === 'CONFLICT' ? 409 : result.error === 'FORBIDDEN' ? 403 : 404;
       return res.status(status).json({ success: false, message: result.message });
     }
+    console.log(`[DRIVER] Driver (${req.user?.id || 'Driver'}) ACCEPTED assignment ${req.params.assignmentId}`);
     return res.json({ 
       success: true, 
+      ok: true,
       assignmentId: result.assignment.id, 
       requestId: result.assignment.requestId, 
+      status: result.assignment.status,
+      assignment: result.assignment,
       eta: result.eta 
     });
   }
@@ -41,6 +45,7 @@ class AssignmentController {
       const status = result.error === 'CONFLICT' ? 409 : result.error === 'FORBIDDEN' ? 403 : 404;
       return res.status(status).json({ success: false, message: result.message });
     }
+    console.log(`[DRIVER] Driver (${req.user?.id || 'Driver'}) REJECTED assignment ${req.params.assignmentId}`);
     return res.json({ 
       success: true, 
       assignmentId: result.assignment.id, 

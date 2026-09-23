@@ -25,6 +25,7 @@ export function AppRoutes() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="emergency/:requestId" element={<EmergencyDetailsPage />} />
         <Route path="emergencies/:requestId" element={<EmergencyDetailsPage />} />
         <Route path="resources" element={<ResourcesPage />} />
         <Route path="history" element={<HistoryPage />} />

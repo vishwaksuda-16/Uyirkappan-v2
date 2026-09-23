@@ -26,10 +26,11 @@ void main() async {
 
   // 3. Initialize Authentication (Module 1 Integration)
   final remoteAuthDataSource = RemoteAuthDataSource(client: httpClient);
-  final authController = AuthController(authDataSource: remoteAuthDataSource);
-
-  // Connect to live Socket.IO gateway
-  socketService.connect(token: authController.token);
+  final authController = AuthController(
+    authDataSource: remoteAuthDataSource,
+    socketService: socketService,
+  );
+  await authController.checkExistingAuth();
 
   // 4. Initialize Remote REST DataSources
   final remoteRequestDataSource = RemoteEmergencyRequestDataSource(
@@ -76,7 +77,8 @@ void main() async {
 }
 
 /// Global ValueNotifier for toggling between Light and Dark mode across the application.
-final ValueNotifier<ThemeMode> appThemeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
+/// Defaulted to Dark mode to match the Driver and Hospital tactical emergency theme.
+final ValueNotifier<ThemeMode> appThemeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
 
 /// Root Application Widget for UyirKappan Module 1 (Bystander App).
 class UyirKappanBystanderApp extends StatelessWidget {

@@ -39,13 +39,26 @@ class AuthController {
 
   async login(req, res) {
     const { email, phone, password } = req.body || {};
-    const user = await this.store.findUserByEmailOrPhone(email, phone);
+    // The driver application historically advertised driver1@… / driver2@…
+    // while the dataset uses the canonical DRV0001@… convention.  Resolve the
+    // old demo aliases at the boundary so both clients authenticate the same
+    // canonical driver account (and therefore receive the same assignments).
+    const canonicalEmail = this.canonicalizeDemoDriverEmail(email);
+    const user = await this.store.findUserByEmailOrPhone(canonicalEmail, phone);
     if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
     const ok = await comparePassword(password, user.passwordHash);
     if (!ok) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
     const token = signToken({ sub: user.id, role: user.role });
     return res.json({ success: true, token, user: this.safeUser(user) });
+  }
+
+  canonicalizeDemoDriverEmail(email) {
+    if (!email) return email;
+    const match = String(email).trim().toLowerCase()
+      .match(/^driver(\d+)@uyirkappan\.demo$/);
+    if (!match) return String(email).trim().toLowerCase();
+    return `drv${match[1].padStart(4, '0')}@uyirkappan.demo`;
   }
 
   me(req, res) {
@@ -55,7 +68,7 @@ class AuthController {
   safeUser(u) {
     return {
       id: u.id, name: u.name, phone: u.phone, email: u.email,
-      role: u.role, hospitalId: u.hospitalId, createdAt: u.createdAt,
+      role: u.role, hospitalId: u.hospitalId, ambulanceId: u.ambulanceId, createdAt: u.createdAt,
     };
   }
 }

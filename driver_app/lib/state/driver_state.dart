@@ -24,11 +24,14 @@ class DriverState extends ChangeNotifier {
   int _todayCompletedCount = 0;
   String? _feedbackMessage;
   String? _errorMessage;
+  Map<String, dynamic>? _demoAssignment;
+  double _simulationSpeed = 1.0;
 
   StreamSubscription<Assignment>? _assignmentSub;
   StreamSubscription<String>? _cancelledSub;
   StreamSubscription<Hospital>? _hospitalSub;
   StreamSubscription<ConnectionStatus>? _connectionSub;
+  StreamSubscription<Map<String, dynamic>>? _demoAssignmentSub;
 
   DriverState({required DriverRepository repository}) : _repository = repository {
     _initStreams();
@@ -45,6 +48,19 @@ class DriverState extends ChangeNotifier {
   int get todayCompletedCount => _todayCompletedCount;
   String? get feedbackMessage => _feedbackMessage;
   String? get errorMessage => _errorMessage;
+  Map<String, dynamic>? get demoAssignment => _demoAssignment;
+  double get simulationSpeed => _simulationSpeed;
+
+  void clearDemoAssignment() {
+    _demoAssignment = null;
+    notifyListeners();
+  }
+
+  void setSimulationSpeed(double speed) {
+    _simulationSpeed = speed.clamp(0.5, 5.0);
+    _repository.setSpeedMultiplier(_simulationSpeed);
+    notifyListeners();
+  }
 
   bool get isAvailable => _availability == AmbulanceAvailability.available;
   bool get isBusy => _availability == AmbulanceAvailability.busy;
@@ -66,6 +82,29 @@ class DriverState extends ChangeNotifier {
       receiveAssignment(assignment);
     });
 
+    // Listen for demo assignment broadcasts
+    _demoAssignmentSub = _repository.onDemoAssignmentCreated.listen((data) {
+      if (_currentAmbulance == null) {
+        _demoAssignment = data;
+        notifyListeners();
+        return;
+      }
+      final curAmb = _currentAmbulance!.ambulanceId.replaceAll('-', '').toUpperCase();
+      final curDrv = _currentAmbulance!.driverId.replaceAll('-', '').toUpperCase();
+      final targetAmb = (data['ambulanceId'] ?? '').toString().replaceAll('-', '').toUpperCase();
+      final targetDrv = (data['driverId'] ?? '').toString().replaceAll('-', '').toUpperCase();
+
+      if (targetAmb != curAmb && (targetDrv.isEmpty || targetDrv != curDrv)) {
+        _demoAssignment = data;
+        notifyListeners();
+      } else {
+        // Assignment is for this driver/ambulance — clear demo card and sync active assignment immediately
+        _demoAssignment = null;
+        _syncActiveAssignment();
+        notifyListeners();
+      }
+    });
+
     // Listen for cancellations
     _cancelledSub = _repository.onAssignmentCancelled.listen((requestId) {
       cancelAssignment(requestId);
@@ -77,18 +116,27 @@ class DriverState extends ChangeNotifier {
     });
   }
 
+  Future<void> syncActiveAssignment() => _syncActiveAssignment();
+
   Future<void> _syncActiveAssignment() async {
     try {
       final active = await _repository.getActiveAssignment();
       if (active != null) {
+        if (active.requestId.isEmpty || active.assignmentId.isEmpty) {
+          return;
+        }
         if (active.status.isActiveEmergency) {
           _activeAssignment = active;
           _lifecycleState = active.status;
           _availability = AmbulanceAvailability.busy;
           notifyListeners();
-        } else if (active.status == DriverLifecycleState.assignmentReceived &&
-            _pendingAssignment == null) {
-          receiveAssignment(active);
+        } else if (active.status == DriverLifecycleState.assignmentReceived) {
+          if (active.expiresAt != null && active.expiresAt!.isBefore(DateTime.now())) {
+            return;
+          }
+          if (_pendingAssignment?.assignmentId != active.assignmentId) {
+            receiveAssignment(active);
+          }
         }
       }
     } catch (_) {}
@@ -100,7 +148,7 @@ class DriverState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void initializeForDriver(Driver driver) {
+  Future<void> initializeForDriver(Driver driver) async {
     _availability = driver.availability;
     _lifecycleState = driver.availability == AmbulanceAvailability.available
         ? DriverLifecycleState.available
@@ -113,7 +161,7 @@ class DriverState extends ChangeNotifier {
       availability: _availability,
     );
     notifyListeners();
-    _syncActiveAssignment();
+    await _syncActiveAssignment();
   }
 
   Future<void> setAvailability(AmbulanceAvailability newAvailability) async {
@@ -151,12 +199,32 @@ class DriverState extends ChangeNotifier {
   }
 
   void receiveAssignment(Assignment assignment) {
-    // Only accept incoming assignment if ambulance is AVAILABLE
-    if (_availability != AmbulanceAvailability.available) {
+    // Only ignore incoming assignment if already engaged in an active emergency mission
+    if (_lifecycleState.isActiveEmergency) {
       return;
     }
 
+    // Strict isolation: only receive if assignment is for this ambulance or driver
+    if (_currentAmbulance != null) {
+      final ambId = _currentAmbulance!.ambulanceId.replaceAll('-', '').toUpperCase();
+      final targetAmbId = assignment.ambulanceId.replaceAll('-', '').toUpperCase();
+      final targetDriverId = assignment.driverId.replaceAll('-', '').toUpperCase();
+      final myDriverId = _currentAmbulance!.driverId.replaceAll('-', '').toUpperCase();
+
+      final matches = targetAmbId.isEmpty ||
+          targetAmbId == ambId ||
+          (targetDriverId.isNotEmpty && targetDriverId == myDriverId);
+      if (!matches) {
+        return; // Ignore assignments intended for other units
+      }
+    }
+
     try {
+      if (_lifecycleState == DriverLifecycleState.offline ||
+          _lifecycleState == DriverLifecycleState.rejected ||
+          _lifecycleState == DriverLifecycleState.timeout) {
+        _lifecycleState = DriverLifecycleState.available;
+      }
       DriverStateMachine.validateTransition(
         _lifecycleState,
         DriverLifecycleState.assignmentReceived,
@@ -388,13 +456,17 @@ class DriverState extends ChangeNotifier {
   }
 
   void cancelAssignment(String requestId) {
-    if (_activeAssignment?.requestId == requestId ||
+    if (requestId == 'ALL' ||
+        requestId == '*' ||
+        _activeAssignment?.requestId == requestId ||
         _pendingAssignment?.requestId == requestId) {
       _activeAssignment = null;
       _pendingAssignment = null;
       _lifecycleState = DriverLifecycleState.available;
       _availability = AmbulanceAvailability.available;
-      _feedbackMessage = 'Assignment cancelled by dispatch: $requestId';
+      _feedbackMessage = (requestId == 'ALL' || requestId == '*')
+          ? 'System reset: Returned to AVAILABLE'
+          : 'Assignment cancelled by dispatch: $requestId';
       notifyListeners();
     }
   }
@@ -419,12 +491,25 @@ class DriverState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Complete session cleanup on logout (Phase 16)
+  void resetOnLogout() {
+    _activeAssignment = null;
+    _pendingAssignment = null;
+    _lifecycleState = DriverLifecycleState.offline;
+    _availability = AmbulanceAvailability.offline;
+    _currentAmbulance = null;
+    _feedbackMessage = null;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _assignmentSub?.cancel();
     _cancelledSub?.cancel();
     _hospitalSub?.cancel();
     _connectionSub?.cancel();
+    _demoAssignmentSub?.cancel();
     super.dispose();
   }
 }

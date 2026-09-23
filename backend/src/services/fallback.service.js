@@ -20,6 +20,9 @@ class FallbackService {
         log('error', `Timeout handler failed: ${e.message}`)
       );
     }, ms);
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
     this.timeouts.set(assignment.id, timer);
     log('info', `Timeout started for ${assignment.id} (${ms}ms)`);
   }
@@ -30,6 +33,14 @@ class FallbackService {
       clearTimeout(t);
       this.timeouts.delete(assignmentId);
     }
+  }
+
+  cancelAllTimeouts() {
+    for (const [id, timer] of this.timeouts.entries()) {
+      clearTimeout(timer);
+    }
+    this.timeouts.clear();
+    log('info', 'All fallback timeouts cancelled');
   }
 
   async handleTimeout(assignmentId) {
@@ -104,7 +115,7 @@ class FallbackService {
       excludedIds
     );
 
-    if (!selection) {
+    if (excludedIds.length >= 10 || !selection) {
       await this.store.updateEmergencyStatus(
         request.requestId,
         'NO_AMBULANCE_AVAILABLE'
@@ -126,6 +137,10 @@ class FallbackService {
     }
 
     const nextAmbulance = selection.ambulance;
+    const { datasetLoader } = require('../data/datasetLoader');
+    const driverObj = datasetLoader.drivers?.find(
+      (d) => d.id === nextAmbulance.driverId || d.assignedAmbulanceId === nextAmbulance.id
+    );
 
     // ✅ Create assignment in store
     const newAssignment = await this.store.createAssignment(
@@ -142,6 +157,10 @@ class FallbackService {
 
     await this.store.updateEmergencyRequest(request.requestId, {
       assignedAmbulanceId: nextAmbulance.id,
+      route: selection.route,
+      alternativeRoutes: selection.alternativeRoutes,
+      candidateRoutes: selection.candidates,
+      routeReason: selection.decisionReason,
     });
 
     await this.store.updateEmergencyStatus(request.requestId, 'ASSIGNED');
@@ -153,8 +172,16 @@ class FallbackService {
     const reassignedPayload = {
       requestId: request.requestId,
       ambulanceId: nextAmbulance.id,
+      driverId: nextAmbulance.driverId,
+      driverName: driverObj?.name || nextAmbulance.driverId || 'Assigned Driver',
+      driverPhone: driverObj?.phone || null,
+      assignedDriverName: driverObj?.name || nextAmbulance.driverId || 'Assigned Driver',
       assignmentId: newAssignment.id,
       attemptNumber: newAssignment.attemptNumber,
+      estimatedETA: selection.estimatedTravelTime,
+      route: selection.route,
+      alternativeRoutes: selection.alternativeRoutes,
+      decisionReason: selection.decisionReason,
     };
 
     this.notificationService.emitToRoom(
@@ -168,6 +195,28 @@ class FallbackService {
         'AMBULANCE_REASSIGNED',
         reassignedPayload
       );
+    }
+
+    // Broadcast for Demo Mode Driver Switcher on Fallback Reassignment
+    const driverId = driverObj?.id || nextAmbulance.driverId || nextAmbulance.id;
+    const driverName = driverObj?.name || driverId || 'Assigned Driver';
+
+    const demoPayload = {
+      requestId: request.requestId,
+      ambulanceId: nextAmbulance.id,
+      driverId,
+      driverName,
+      driverPhone: driverObj?.phone || null,
+      eta: selection.estimatedTravelTime,
+      score: typeof selection.score === 'number' ? (Math.round(selection.score * 1000) / 1000) : 0.22,
+      decisionReason: selection.decisionReason,
+      baselineEta: selection.estimatedTravelTime,
+      etaImprovementPct: 0,
+      attemptNumber: newAssignment.attemptNumber,
+    };
+    if (typeof this.notificationService?.broadcast === 'function') {
+      this.notificationService.broadcast('DEMO_ASSIGNMENT_CREATED', demoPayload);
+      this.notificationService.broadcast('ASSIGNMENT_CREATED', demoPayload);
     }
 
     await sendAssignmentToDriver(this, newAssignment);

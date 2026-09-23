@@ -14,11 +14,11 @@ class AppConfig {
   const AppConfig({
     this.apiBaseUrl = const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'http://localhost:4000/api',
+      defaultValue: 'http://localhost:5000/api',
     ),
     this.socketUrl = const String.fromEnvironment(
       'SOCKET_URL',
-      defaultValue: 'http://localhost:4000',
+      defaultValue: 'http://localhost:5000',
     ),
     this.appMode = AppMode.real,
     this.assignmentTimeoutSeconds = 15,

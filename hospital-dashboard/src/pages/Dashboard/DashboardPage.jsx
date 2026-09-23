@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useAuth from '../../hooks/useAuth';
 import useEmergency from '../../hooks/useEmergency';
 import useHospitalResources from '../../hooks/useHospitalResources';
+import hospitalApi from '../../services/hospitalApi';
 import OperationalMetrics from '../../components/dashboard/OperationalMetrics';
 import CriticalEmergencyBanner from '../../components/dashboard/CriticalEmergencyBanner';
 import IncomingEmergencyList from '../../components/dashboard/IncomingEmergencyList';
@@ -12,7 +13,9 @@ import ResourceUpdateModal from '../../components/resources/ResourceUpdateModal'
 import { Radio, RefreshCw, Building2, AlertTriangle, Settings2 } from 'lucide-react';
 
 export function DashboardPage() {
-  const { user, hospital } = useAuth();
+  const { user, hospital, switchHospital } = useAuth();
+  const [hospitalInfo, setHospitalInfo] = useState(hospital);
+  const [allHospitals, setAllHospitals] = useState([]);
   const { emergencies, isLoading, error, refreshEmergencies } = useEmergency();
   const {
     resources,
@@ -21,6 +24,25 @@ export function DashboardPage() {
   } = useHospitalResources(user?.hospitalId);
 
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
+
+  useEffect(() => {
+    hospitalApi.getHospitals().then((list) => {
+      if (Array.isArray(list) && list.length > 0) {
+        setAllHospitals(list);
+      }
+    }).catch((e) => {
+      if (import.meta.env?.DEV) console.warn('Failed to load all hospitals:', e);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (user?.hospitalId) {
+      hospitalApi.getHospital(user.hospitalId).then((data) => {
+        if (data?.hospital) setHospitalInfo(data.hospital);
+      }).catch(() => {});
+    }
+  }, [user?.hospitalId]);
+
 
   // Active non-completed cases
   const activeEmergencies = emergencies.filter((e) => e.status !== 'COMPLETED');
@@ -75,33 +97,72 @@ export function DashboardPage() {
                 letterSpacing: '-0.02em',
               }}
             >
-              {hospital?.name || user?.hospitalName || 'Apollo Trauma & Emergency Center'}
+              {hospitalInfo?.name || hospital?.name || user?.hospitalName || 'Emergency Care Center'}
             </h1>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Hospital Facility ID: <strong style={{ color: 'var(--status-info)' }}>{user?.hospitalId || 'HOSP-01'}</strong> • {hospital?.tier || 'Level 1 Trauma Center'}
+              Hospital Facility ID: <strong style={{ color: 'var(--status-info)' }}>{user?.hospitalId || 'H001'}</strong> • {hospitalInfo?.area || hospital?.area || 'Trauma & Emergency Center'}
             </div>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsResourceModalOpen(true)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-primary)',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Settings2 size={15} />
-          <span>Update Resources</span>
-        </button>
+        {/* Header Controls: Hospital Switcher, Dataset Status, Resource Update */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          {/* Phase 3 & 4: Live Hospital Selector across ALL 30 hospitals */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Switch Hospital:
+            </span>
+            <select
+              id="hospital-switcher-select"
+              value={user?.hospitalId || 'H001'}
+              onChange={(e) => switchHospital(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+                maxWidth: '280px',
+              }}
+            >
+              {allHospitals.length > 0 ? (
+                allHospitals.map((h) => (
+                  <option key={h.id} value={h.id} style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                    {h.id} — {h.name}
+                  </option>
+                ))
+              ) : (
+                <option value={user?.hospitalId || 'H001'}>
+                  {user?.hospitalId || 'H001'} — Current Facility
+                </option>
+              )}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setIsResourceModalOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-primary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Settings2 size={15} />
+            <span>Update Resources</span>
+          </button>
+        </div>
       </div>
 
       {/* Low-Resource Warning Alert Banner (Checklist Section 17) */}
@@ -295,6 +356,7 @@ export function DashboardPage() {
         onSave={updateResources}
         isSaving={isSavingResources}
       />
+
     </div>
   );
 }

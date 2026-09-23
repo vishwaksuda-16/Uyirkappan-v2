@@ -45,9 +45,9 @@ Data Layer (DataSources & Persistence)
 Module 1 features an **Adaptive Architecture** with a one-tap switch in the top header:
 
 - **`[⚡ LIVE BACKEND]` Mode**:
-  - Connects directly to the Node.js / Express backend at `http://localhost:4000`.
+  - Connects directly to the Node.js / Express backend at `http://localhost:5000`.
   - Sends authenticated requests with `Authorization: Bearer <JWT-Token>`.
-  - Connects to Socket.IO at `http://localhost:4000` and joins room `emergency:{requestId}`.
+  - Connects to Socket.IO at `http://localhost:5000` and joins room `emergency:{requestId}`.
   - Subscribes to live vehicle telemetry and status updates.
 
 - **`[🧪 SIMULATION]` Mode**:
@@ -91,7 +91,7 @@ Accessible via the **"SCENARIOS"** menu in the top bar:
 | **14** | **Voice / Toll-Free Fallback**| Direct 108 helpline integration modal with automated IVR dispatch | ✅ Verified |
 | **15** | **Simulation Mode** | Dual-mode switch with 4 test scenarios and full API parity | ✅ Verified |
 | **16** | **Error Handling** | HTTP 400, 401, 403, 404, 409 mapping, offline fallback | ✅ Verified |
-| **17** | **API Reference** | Aligned endpoints with base URL `http://localhost:4000/api` | ✅ Verified |
+| **17** | **API Reference** | Aligned endpoints with base URL `http://localhost:5000/api` | ✅ Verified |
 | **18** | **End-to-End Flow** | Complete 19-step lifecycle verified from standby to hospital handover | ✅ Verified |
 | **19** | **Screen Navigation** | Modal sheets preserving map continuity and live tracking | ✅ Verified |
 | **20** | **UI/UX Requirements** | High-contrast emergency theme, zero overlaps, dark/light mode | ✅ Verified |
@@ -146,8 +146,8 @@ flutter test
 | **Email** | `bystander@uyirkappan.demo` |
 | **Password** | `password123` |
 | **Role** | `BYSTANDER` |
-| **Backend URL** | `http://localhost:4000` |
-| **Socket.IO URL** | `http://localhost:4000` (Namespace / Root) |
+| **Backend URL** | `http://localhost:5000` |
+| **Socket.IO URL** | `http://localhost:5000` (Namespace / Root) |
 
 ---
 

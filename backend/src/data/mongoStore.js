@@ -2,6 +2,7 @@ const { hashPassword } = require('../utils/security');
 const idGen = require('../utils/idGen');
 const { DRIVER_RESPONSE_TIMEOUT_MS } = require('../config/environment');
 const { distanceKm } = require('./memoryStore');
+const { datasetLoader } = require('./datasetLoader');
 
 const User = require('../models/User');
 const Ambulance = require('../models/Ambulance');
@@ -32,20 +33,20 @@ class MongoStore {
 
   // Keep custom IDs (UK-…, ASSIGN-…) unique across server restarts.
   async synchronizeCounters() {
-    const last = async (Model, regex) => {
-      const doc = await Model.findOne({ id: regex }).sort({ id: -1 }).select('id').lean();
-      return doc ? doc.id : null;
+    const last = async (Model, field, regex) => {
+      const doc = await Model.findOne({ [field]: regex }).sort({ [field]: -1 }).select(field).lean();
+      return doc ? doc[field] : null;
     };
     const num = (id, regex) => { const m = id.match(regex); return m ? parseInt(m[1], 10) : 0; };
 
     let id;
-    if ((id = await last(User, /^USER-\d+$/))) idGen.setUserIdCounter(num(id, /^USER-(\d+)$/));
-    if ((id = await last(EmergencyRequest, /^UK-\d{4}-\d{6}$/))) idGen.setEmergencyCounter(num(id, /^UK-\d{4}-(\d{6})$/));
-    if ((id = await last(Assignment, /^ASSIGN-\d+$/))) idGen.setAssignmentCounter(num(id, /^ASSIGN-(\d+)$/));
-    if ((id = await last(Ambulance, /^AMB-\d+$/))) idGen.setAmbulanceCounter(num(id, /^AMB-(\d+)$/));
-    if ((id = await last(Hospital, /^HOSP-\d+$/))) idGen.setHospitalCounter(num(id, /^HOSP-(\d+)$/));
-    if ((id = await last(RequestAttempt, /^ATTEMPT-\d+$/))) idGen.setAttemptCounter(num(id, /^ATTEMPT-(\d+)$/));
-    if ((id = await last(LocationHistory, /^LOC-\d+$/))) idGen.setLocationCounter(num(id, /^LOC-(\d+)$/));
+    if ((id = await last(User, 'id', /^USER-\d+$/))) idGen.setUserIdCounter(num(id, /^USER-(\d+)$/));
+    if ((id = await last(EmergencyRequest, 'requestId', /^UK-\d{4}-\d{6}$/))) idGen.setEmergencyCounter(num(id, /^UK-\d{4}-(\d{6})$/));
+    if ((id = await last(Assignment, 'id', /^ASSIGN-\d+$/))) idGen.setAssignmentCounter(num(id, /^ASSIGN-(\d+)$/));
+    if ((id = await last(Ambulance, 'id', /^AMB-\d+$/))) idGen.setAmbulanceCounter(num(id, /^AMB-(\d+)$/));
+    if ((id = await last(Hospital, 'id', /^HOSP-\d+$/))) idGen.setHospitalCounter(num(id, /^HOSP-(\d+)$/));
+    if ((id = await last(RequestAttempt, 'id', /^ATTEMPT-\d+$/))) idGen.setAttemptCounter(num(id, /^ATTEMPT-(\d+)$/));
+    if ((id = await last(LocationHistory, 'id', /^LOC-\d+$/))) idGen.setLocationCounter(num(id, /^LOC-(\d+)$/));
   }
 
   // ------------------------------------------------------------------- users
@@ -62,7 +63,16 @@ class MongoStore {
   // ---------------------------------------------------------------- ambulances
   async getAmbulances() { return (await Ambulance.find({}).lean()).map(clean); }
   async getAmbulanceById(id) { return clean(await Ambulance.findOne({ id })); }
-  async getAmbulanceByDriverId(driverId) { return clean(await Ambulance.findOne({ driverId })); }
+  async getAmbulanceByDriverId(driverId) {
+    let amb = clean(await Ambulance.findOne({ driverId }));
+    if (!amb) {
+      const user = await this.findUserById(driverId);
+      if (user?.ambulanceId) {
+        amb = clean(await Ambulance.findOne({ id: user.ambulanceId }));
+      }
+    }
+    return amb;
+  }
   async updateAmbulance(id, patch) {
     return clean(await Ambulance.findOneAndUpdate(
       { id },
@@ -71,7 +81,14 @@ class MongoStore {
     ));
   }
   async updateAmbulanceStatus(id, status) { return this.updateAmbulance(id, { status }); }
-  async releaseAmbulance(id) { return this.updateAmbulance(id, { status: 'AVAILABLE', currentRequestId: null }); }
+  async releaseAmbulance(id) {
+    return this.updateAmbulance(id, {
+      status: 'AVAILABLE',
+      currentRequestId: null,
+      activeEmergencyId: null,
+      currentAssignmentId: null,
+    });
+  }
   async updateAmbulanceLocation(id, { latitude, longitude, speed, heading }) {
     return this.updateAmbulance(id, {
       currentLocation: { latitude, longitude },
@@ -183,10 +200,23 @@ class MongoStore {
   async getActiveAssignmentForDriver(driverId) {
     const ambulance = await this.getAmbulanceByDriverId(driverId);
     if (!ambulance) return null;
-    return clean(await Assignment.findOne({
+
+    const now = new Date();
+    const assns = (await Assignment.find({
       ambulanceId: ambulance.id,
-      status: { $in: ['PENDING', 'ACCEPTED'] },
-    }).sort({ assignedAt: -1 }));
+      $or: [
+        { status: { $in: ['ACCEPTED', 'EN_ROUTE_TO_PATIENT', 'ARRIVED_AT_PATIENT', 'PATIENT_ONBOARD', 'EN_ROUTE_TO_HOSPITAL', 'ARRIVED_AT_HOSPITAL'] } },
+        { status: 'PENDING', expiresAt: { $gt: now } },
+      ],
+    }).sort({ assignedAt: -1 }).lean()).map(clean);
+
+    for (const a of assns) {
+      const req = await this.getEmergencyByRequestId(a.requestId);
+      if (req && !['COMPLETED', 'CANCELLED', 'RESOLVED', 'NO_AMBULANCE_AVAILABLE'].includes(req.status)) {
+        return a;
+      }
+    }
+    return null;
   }
   async getAssignmentsForRequest(requestId) {
     return (await Assignment.find({ requestId }).sort({ assignedAt: 1 }).lean()).map(clean);
@@ -224,61 +254,102 @@ class MongoStore {
 
   // ----------------------------------------------------------------------- seed
   async seed() {
+    datasetLoader.loadAll();
     const pwHash = await hashPassword('password123');
 
+    // 1. Users
     const users = [
       { id: 'USER-001', name: 'Bystander', email: 'bystander@uyirkappan.demo', phone: '9000000001', role: 'BYSTANDER' },
-      { id: 'USER-002', name: 'Driver 1', email: 'driver1@uyirkappan.demo', phone: '9000000002', role: 'DRIVER' },
-      { id: 'USER-003', name: 'Driver 2', email: 'driver2@uyirkappan.demo', phone: '9000000003', role: 'DRIVER' },
-      { id: 'USER-004', name: 'Driver 3', email: 'driver3@uyirkappan.demo', phone: '9000000004', role: 'DRIVER' },
-      { id: 'USER-005', name: 'Driver 4', email: 'driver4@uyirkappan.demo', phone: '9000000005', role: 'DRIVER' },
-      { id: 'USER-006', name: 'Driver 5', email: 'driver5@uyirkappan.demo', phone: '9000000006', role: 'DRIVER' },
-      { id: 'USER-007', name: 'Hospital Staff', email: 'staff@uyirkappan.demo', phone: '9000000007', role: 'HOSPITAL_STAFF', hospitalId: 'HOSP-01' },
       { id: 'USER-008', name: 'Admin', email: 'admin@uyirkappan.demo', phone: '9000000008', role: 'ADMIN' },
+      { id: 'USER-007', name: 'Hospital Staff', email: 'staff@uyirkappan.demo', phone: '9000000007', role: 'HOSPITAL_STAFF', hospitalId: 'H001' },
     ];
+
+    // Staff accounts for all 30 hospitals
+    for (const h of datasetLoader.hospitals) {
+      users.push({
+        id: `STAFF-${h.id}`,
+        name: `${h.name} Staff`,
+        email: `staff.${h.id.toLowerCase()}@uyirkappan.demo`,
+        phone: '9000000007',
+        role: 'HOSPITAL_STAFF',
+        hospitalId: h.id,
+      });
+    }
+
+    // Drivers
+    for (const d of datasetLoader.drivers) {
+      users.push({
+        id: d.id,
+        name: d.name,
+        email: `${d.id.toLowerCase()}@uyirkappan.demo`,
+        phone: d.phone,
+        role: 'DRIVER',
+        ambulanceId: d.assignedAmbulanceId,
+      });
+    }
+
+    // Demo driver aliases — use UNIQUE ids so they don't overwrite real drivers
+    // This lets users login with either 'drv0001@uyirkappan.demo' OR 'driver1@uyirkappan.demo'
+    const d1 = datasetLoader.drivers[0];
+    if (d1) {
+      users.push({ id: 'DEMO-DRV1', name: d1.name, email: 'driver1@uyirkappan.demo', phone: d1.phone, role: 'DRIVER', ambulanceId: d1.assignedAmbulanceId });
+    }
+    const d2 = datasetLoader.drivers[1];
+    if (d2) {
+      users.push({ id: 'DEMO-DRV2', name: d2.name, email: 'driver2@uyirkappan.demo', phone: d2.phone, role: 'DRIVER', ambulanceId: d2.assignedAmbulanceId });
+    }
     for (const u of users) {
       await User.updateOne(
         { id: u.id },
         {
-          $set: { name: u.name, email: u.email, phone: u.phone, role: u.role, hospitalId: u.hospitalId },
-          $setOnInsert: { passwordHash: pwHash }, // never overwrite existing password hashes
+          $set: {
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            role: u.role,
+            hospitalId: u.hospitalId,
+            ambulanceId: u.ambulanceId,
+            passwordHash: pwHash,
+          },
         },
         { upsert: true }
       );
     }
 
-    const hospitals = [
-      { id: 'HOSP-01', name: 'Apollo Hospital', lat: 13.0327, lng: 80.2207, g: 20, i: 6, v: 3 },
-      { id: 'HOSP-02', name: 'Metro Hospital', lat: 13.0727, lng: 80.2407, g: 25, i: 8, v: 4 },
-      { id: 'HOSP-03', name: 'Fortis Hospital', lat: 13.0827, lng: 80.2707, g: 30, i: 10, v: 5 },
-    ];
-    for (const h of hospitals) {
+    // 2. 30 Canonical Hospitals
+    for (const h of datasetLoader.hospitals) {
       await Hospital.updateOne(
         { id: h.id },
-        { $set: { name: h.name, location: { latitude: h.lat, longitude: h.lng },
-                  resources: { generalBeds: h.g, icuBeds: h.i, ventilators: h.v } } },
+        {
+          $set: {
+            name: h.name,
+            location: { latitude: h.location.latitude, longitude: h.location.longitude },
+            resources: h.resources,
+            area: h.area,
+            sector: h.sector,
+            traumaCapable: h.traumaCapable,
+            cardiacCapable: h.cardiacCapable,
+            operationalStatus: h.operationalStatus,
+          },
+        },
         { upsert: true }
       );
     }
 
-    const ambulances = [
-      { id: 'AMB-01', number: 'TN-01-A-4444', driver: 'USER-002', lat: 13.0027, lng: 80.1707 },
-      { id: 'AMB-02', number: 'TN-01-B-5555', driver: 'USER-003', lat: 13.0527, lng: 80.2207 },
-      { id: 'AMB-03', number: 'TN-01-C-6666', driver: 'USER-004', lat: 13.1027, lng: 80.3007 },
-      { id: 'AMB-04', number: 'TN-01-D-7777', driver: 'USER-005', lat: 13.1127, lng: 80.3107 },
-      { id: 'AMB-05', number: 'TN-01-E-8888', driver: 'USER-006', lat: 13.1227, lng: 80.3207 },
-    ];
-    for (const a of ambulances) {
+    // 3. 131 Fleet Ambulances
+    for (const a of datasetLoader.ambulances) {
       await Ambulance.updateOne(
         { id: a.id },
         {
           $set: {
-            ambulanceNumber: a.number,
-            driverId: a.driver,
-            currentLocation: { latitude: a.lat, longitude: a.lng },
-            status: 'AVAILABLE',
+            ambulanceNumber: a.ambulanceId,
+            driverId: a.driverId,
+            currentLocation: { latitude: a.currentLocation.latitude, longitude: a.currentLocation.longitude },
+            status: a.status || 'AVAILABLE',
             currentRequestId: null,
-            capabilities: ['ICU', 'OXYGEN'],
+            capabilities: a.capabilities,
+            vehicleType: a.vehicleType,
+            baseId: a.baseId,
           },
         },
         { upsert: true }

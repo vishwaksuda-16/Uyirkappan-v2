@@ -32,6 +32,7 @@ class EmergencyController extends ChangeNotifier {
   // Active Lifecycle State
   SubmissionState _submissionState = SubmissionState.idle;
   EmergencyRequest? _activeRequest;
+  String? _recommendedHospitalDestination;
   String? _errorMessage;
   int? _lastErrorCode;
   StreamSubscription<EmergencyRequest>? _requestSubscription;
@@ -58,6 +59,7 @@ class EmergencyController extends ChangeNotifier {
   String get additionalNotes => _additionalNotes;
   SubmissionState get submissionState => _submissionState;
   EmergencyRequest? get activeRequest => _activeRequest;
+  String? get recommendedHospitalDestination => _recommendedHospitalDestination;
   String? get errorMessage => _errorMessage;
   int? get lastErrorCode => _lastErrorCode;
   bool get hasActiveRequest => _activeRequest != null && _activeRequest!.status.isActive;
@@ -69,6 +71,45 @@ class EmergencyController extends ChangeNotifier {
     _socketEventSubscription = socketService!.eventStream.listen((event) {
       _handleSocketEvent(event);
     });
+  }
+
+  List<LocationData>? _parseRouteWaypoints(dynamic routeObj) {
+    if (routeObj is Map<String, dynamic> && routeObj['waypoints'] is List) {
+      final wps = routeObj['waypoints'] as List<dynamic>;
+      return wps.map((wp) {
+        if (wp is Map<String, dynamic>) {
+          return LocationData(
+            latitude: (wp['latitude'] as num?)?.toDouble() ?? 0.0,
+            longitude: (wp['longitude'] as num?)?.toDouble() ?? 0.0,
+            timestamp: DateTime.now(),
+          );
+        }
+        return LocationData(latitude: 0.0, longitude: 0.0, timestamp: DateTime.now());
+      }).where((l) => l.latitude != 0.0 && l.longitude != 0.0).toList();
+    }
+    return null;
+  }
+
+  List<List<LocationData>>? _parseAltRoutes(dynamic altObj) {
+    if (altObj is List) {
+      return altObj.map((alt) {
+        if (alt is Map<String, dynamic> && alt['waypoints'] is List) {
+          final wps = alt['waypoints'] as List<dynamic>;
+          return wps.map((wp) {
+            if (wp is Map<String, dynamic>) {
+              return LocationData(
+                latitude: (wp['latitude'] as num?)?.toDouble() ?? 0.0,
+                longitude: (wp['longitude'] as num?)?.toDouble() ?? 0.0,
+                timestamp: DateTime.now(),
+              );
+            }
+            return LocationData(latitude: 0.0, longitude: 0.0, timestamp: DateTime.now());
+          }).where((l) => l.latitude != 0.0 && l.longitude != 0.0).toList();
+        }
+        return <LocationData>[];
+      }).where((list) => list.isNotEmpty).toList();
+    }
+    return null;
   }
 
   void _handleSocketEvent(SocketEvent event) {
@@ -84,10 +125,36 @@ class EmergencyController extends ChangeNotifier {
         notif = 'Ambulance $ambId assigned. ETA: $eta minutes';
         if (_activeRequest != null) {
           final etaNum = (eta is num) ? eta.toInt() : int.tryParse(eta.toString());
+          final bRoute = _parseRouteWaypoints(event.data['route']);
+          final bAlt = _parseAltRoutes(event.data['alternativeRoutes']);
+          final rId = event.data['route'] is Map ? (event.data['route']['routeId'] as String?) : null;
+          final rReason = event.data['decisionReason'] as String? ?? (event.data['route'] is Map ? event.data['route']['decisionReason'] as String? : null);
           _activeRequest = _activeRequest!.copyWith(
             assignedAmbulanceId: ambId.toString(),
             status: RequestStatus.assigned,
             currentETA: etaNum ?? _activeRequest!.currentETA,
+            backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
+            routeId: rId ?? _activeRequest!.routeId,
+            routeReason: rReason ?? _activeRequest!.routeReason,
+          );
+        }
+        break;
+      case 'ROUTE_UPDATED':
+        final bRoute = _parseRouteWaypoints(event.data['route']);
+        final bAlt = _parseAltRoutes(event.data['alternativeRoutes']);
+        final etaMin = event.data['etaMinutes'] ?? event.data['eta'];
+        final rId = event.data['route'] is Map ? (event.data['route']['routeId'] as String?) : null;
+        final rReason = event.data['selectionReason'] as String? ?? event.data['decisionReason'] as String?;
+        notif = 'Route updated. Dynamic ETA: ${etaMin ?? '--'} minutes';
+        if (_activeRequest != null) {
+          final etaNum = (etaMin is num) ? etaMin.toInt() : int.tryParse(etaMin?.toString() ?? '');
+          _activeRequest = _activeRequest!.copyWith(
+            currentETA: etaNum ?? _activeRequest!.currentETA,
+            backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
+            routeId: rId ?? _activeRequest!.routeId,
+            routeReason: rReason ?? _activeRequest!.routeReason,
           );
         }
         break;
@@ -116,9 +183,15 @@ class EmergencyController extends ChangeNotifier {
         final st = event.data['status'] ?? '';
         notif = 'Status updated: $st';
         if (_activeRequest != null && st.toString().isNotEmpty) {
+          final newStatus = RequestStatus.fromCode(st.toString());
           _activeRequest = _activeRequest!.copyWith(
-            status: RequestStatus.fromCode(st.toString()),
+            status: newStatus,
+            completedAt: newStatus == RequestStatus.completed ? DateTime.now() : _activeRequest!.completedAt,
           );
+          if (newStatus == RequestStatus.completed) {
+            _submissionState = SubmissionState.completed;
+            repository.clearActivePersistedRequest();
+          }
         }
         break;
       case 'FALLBACK_STARTED':
@@ -139,19 +212,40 @@ class EmergencyController extends ChangeNotifier {
         if (_activeRequest != null) {
           final etaNum = (eta is num) ? eta.toInt() : int.tryParse(eta.toString());
           final attemptNum = (attempts is num) ? attempts.toInt() : int.tryParse(attempts?.toString() ?? '');
+          final bRoute = _parseRouteWaypoints(event.data['route']);
+          final bAlt = _parseAltRoutes(event.data['alternativeRoutes']);
+          final rId = event.data['route'] is Map ? (event.data['route']['routeId'] as String?) : null;
+          final rReason = event.data['decisionReason'] as String? ?? (event.data['route'] is Map ? event.data['route']['decisionReason'] as String? : null);
           _activeRequest = _activeRequest!.copyWith(
             assignedAmbulanceId: ambId.toString(),
             status: RequestStatus.assigned,
             currentETA: etaNum ?? _activeRequest!.currentETA,
             fallbackCount: attemptNum != null ? (attemptNum - 1) : (_activeRequest!.fallbackCount + 1),
+            backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
+            routeId: rId ?? _activeRequest!.routeId,
+            routeReason: rReason ?? _activeRequest!.routeReason,
           );
         }
         break;
       case 'AMBULANCE_ARRIVED':
         notif = 'Ambulance has arrived at your location';
+        if (_activeRequest != null) {
+          _activeRequest = _activeRequest!.copyWith(
+            status: RequestStatus.arrivedAtPatient,
+          );
+        }
         break;
       case 'EMERGENCY_COMPLETED':
         notif = 'Emergency response completed';
+        if (_activeRequest != null) {
+          _activeRequest = _activeRequest!.copyWith(
+            status: RequestStatus.completed,
+            completedAt: DateTime.now(),
+          );
+          _submissionState = SubmissionState.completed;
+          repository.clearActivePersistedRequest();
+        }
         break;
       default:
         notif = '${event.event}: ${event.data}';
@@ -201,6 +295,23 @@ class EmergencyController extends ChangeNotifier {
     _t0ClientPressTime = DateTime.now();
   }
 
+  Future<String?> refreshRecommendedHospital(LocationData emergencyLocation) async {
+    try {
+      final hospitalId = await repository.recommendHospitalDestination(
+        emergencyType: _selectedType,
+        victimCount: _victimCount,
+        emergencyLocation: emergencyLocation,
+      );
+      _recommendedHospitalDestination = hospitalId;
+      notifyListeners();
+      return hospitalId;
+    } catch (_) {
+      _recommendedHospitalDestination = null;
+      notifyListeners();
+      return null;
+    }
+  }
+
   /// Validates input and submits the emergency request through the repository.
   Future<bool> submitEmergencyRequest({
     required LocationData emergencyLocation,
@@ -221,6 +332,8 @@ class EmergencyController extends ChangeNotifier {
 
     final t0 = _t0ClientPressTime ?? DateTime.now();
 
+    final hospitalDestination = await refreshRecommendedHospital(emergencyLocation);
+
     final draft = EmergencyRequest(
       requestId: '',
       requesterId: requesterId ?? '',
@@ -230,6 +343,7 @@ class EmergencyController extends ChangeNotifier {
       requesterLocation: requesterLocation,
       createdAt: DateTime.now(),
       status: RequestStatus.created,
+      hospitalDestination: hospitalDestination,
       additionalNotes: _additionalNotes.isNotEmpty ? _additionalNotes : null,
       t0UserPressed: t0,
     );
@@ -332,6 +446,7 @@ class EmergencyController extends ChangeNotifier {
     _unsubscribe();
     _submissionState = SubmissionState.idle;
     _activeRequest = null;
+    _recommendedHospitalDestination = null;
     _errorMessage = null;
     _lastErrorCode = null;
     _victimCount = AppConstants.defaultVictims;

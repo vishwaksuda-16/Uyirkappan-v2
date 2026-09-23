@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UyirKappan — Traffic & Road Network Visualization</title>
+  <meta name="description" content="Real-time traffic visualization with time-of-day simulation, GPS trajectory replay, and hospital capacity heatmap for Chennai ambulance dispatch">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #0a0e1a; color: #e0e6f0; overflow: hidden; }
+
+    #map { width: 100vw; height: 100vh; z-index: 1; }
+
+    .glass-panel {
+      background: rgba(15, 20, 40, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, rgba(10, 14, 30, 0.95), rgba(20, 30, 60, 0.95));
+      border-bottom: 1px solid rgba(100, 140, 255, 0.2);
+      backdrop-filter: blur(20px);
+    }
+    #header h1 {
+      font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 8px; }
+    .nav-links a {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+      text-decoration: none; color: #94a3b8; transition: all 0.2s;
+      border: 1px solid rgba(100, 140, 255, 0.1);
+    }
+    .nav-links a:hover { color: #60a5fa; border-color: rgba(100, 140, 255, 0.3); background: rgba(96, 165, 250, 0.08); }
+    .nav-links a.active { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+
+    /* Traffic control panel */
+    #traffic-controls {
+      position: fixed; top: 70px; left: 16px; z-index: 1000;
+      width: 340px; padding: 20px;
+    }
+    .section-title {
+      font-size: 12px; font-weight: 600; color: #a78bfa; margin-bottom: 12px;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    /* Time slider */
+    .time-display {
+      text-align: center; margin-bottom: 12px;
+    }
+    .time-value {
+      font-size: 48px; font-weight: 900; letter-spacing: -2px;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .time-label { font-size: 12px; color: #64748b; }
+    .time-slider {
+      width: 100%; height: 6px; -webkit-appearance: none; appearance: none;
+      background: rgba(30, 40, 70, 0.8); border-radius: 3px; outline: none;
+      margin: 8px 0;
+    }
+    .time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      cursor: pointer; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+    }
+    .time-slider::-moz-range-thumb {
+      width: 20px; height: 20px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6); cursor: pointer;
+    }
+
+    /* Day toggle */
+    .day-toggle { display: flex; gap: 4px; margin: 12px 0; }
+    .day-btn {
+      flex: 1; padding: 8px; border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 8px; background: rgba(30, 40, 70, 0.5); color: #64748b;
+      font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;
+      transition: all 0.2s; font-family: 'Inter', sans-serif;
+    }
+    .day-btn.active { background: rgba(96, 165, 250, 0.15); color: #60a5fa; border-color: #60a5fa; }
+
+    /* Congestion meter */
+    .congestion-meter { margin: 16px 0; }
+    .meter-bar { height: 8px; border-radius: 4px; background: rgba(30, 40, 70, 0.5); overflow: hidden; margin: 6px 0; }
+    .meter-fill { height: 100%; border-radius: 4px; transition: width 0.5s, background 0.5s; }
+    .meter-labels { display: flex; justify-content: space-between; font-size: 10px; color: #475569; }
+
+    /* GPS Trajectory controls */
+    .trajectory-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(100, 140, 255, 0.1); }
+    .select-input {
+      width: 100%; padding: 8px 12px; background: rgba(30, 40, 70, 0.8);
+      border: 1px solid rgba(100, 140, 255, 0.2); border-radius: 8px;
+      color: #e0e6f0; font-size: 12px; font-family: 'Inter', sans-serif;
+      outline: none; margin-bottom: 8px;
+    }
+    .select-input:focus { border-color: #60a5fa; }
+    .btn {
+      padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; width: 100%;
+    }
+    .btn-play {
+      background: linear-gradient(135deg, #059669, #34d399); color: white;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); margin-bottom: 6px;
+    }
+    .btn-stop {
+      background: rgba(30, 40, 70, 0.6); color: #94a3b8;
+      border: 1px solid rgba(100, 140, 255, 0.15);
+    }
+
+    /* Hospital panel */
+    #hospital-panel {
+      position: fixed; top: 70px; right: 16px; z-index: 1000;
+      width: 280px; padding: 16px; max-height: calc(100vh - 100px); overflow-y: auto;
+    }
+    .hospital-item {
+      padding: 10px; border-radius: 10px; margin-bottom: 6px;
+      background: rgba(30, 40, 70, 0.3); border: 1px solid rgba(100, 140, 255, 0.06);
+      font-size: 11px; cursor: pointer; transition: all 0.15s;
+    }
+    .hospital-item:hover { border-color: rgba(100, 140, 255, 0.2); background: rgba(30, 40, 70, 0.5); }
+    .hospital-name { font-weight: 600; color: #60a5fa; margin-bottom: 4px; font-size: 12px; }
+    .capacity-bar { display: flex; gap: 6px; margin-top: 6px; }
+    .cap-item { flex: 1; text-align: center; }
+    .cap-mini-bar { height: 4px; border-radius: 2px; background: rgba(30, 40, 70, 0.5); overflow: hidden; margin-top: 3px; }
+    .cap-mini-fill { height: 100%; border-radius: 2px; }
+    .cap-label { font-size: 9px; color: #475569; text-transform: uppercase; }
+
+    /* Layer toggles */
+    .layer-toggles { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(100, 140, 255, 0.1); }
+    .toggle-row {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8;
+      cursor: pointer; margin-bottom: 8px;
+    }
+
+    /* Traffic state badge */
+    .traffic-badge {
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      font-size: 12px; font-weight: 700; margin-top: 4px;
+    }
+    .traffic-NORMAL { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .traffic-MODERATE { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .traffic-HEAVY { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+
+    /* Loading */
+    #loading {
+      position: fixed; inset: 0; z-index: 2000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(10, 14, 26, 0.95);
+    }
+    #loading.hidden { display: none; }
+    .spinner { width: 48px; height: 48px; border: 3px solid rgba(100, 140, 255, 0.15); border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { margin-top: 16px; font-size: 14px; color: #64748b; }
+
+    .leaflet-popup-content-wrapper { background: rgba(15, 20, 40, 0.95) !important; border: 1px solid rgba(100, 140, 255, 0.2) !important; border-radius: 12px !important; color: #e0e6f0 !important; }
+    .leaflet-popup-tip { background: rgba(15, 20, 40, 0.95) !important; }
+    .leaflet-popup-content { font-family: 'Inter', sans-serif !important; font-size: 12px !important; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(100, 140, 255, 0.2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading traffic data…</p>
+  </div>
+
+  <div id="header">
+    <h1>🚦 Traffic & Road Network Visualization</h1>
+    <div class="nav-links">
+      <a href="/network-map.html">Network</a>
+      <a href="/comparison-dashboard.html">Comparison</a>
+      <a href="/traffic-visualization.html" class="active">Traffic</a>
+    </div>
+  </div>
+
+  <div id="traffic-controls" class="glass-panel">
+    <div class="section-title">Time-of-Day Traffic Simulation</div>
+    <div class="time-display">
+      <div class="time-value" id="time-display">12:00</div>
+      <div class="time-label" id="time-period">Afternoon</div>
+    </div>
+    <input type="range" class="time-slider" id="time-slider" min="0" max="23" value="12" oninput="updateTraffic()">
+    <div style="display: flex; justify-content: space-between; font-size: 10px; color: #475569;">
+      <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+    </div>
+
+    <div class="day-toggle">
+      <button class="day-btn active" id="btn-weekday" onclick="setDayType('Weekday')">Weekday</button>
+      <button class="day-btn" id="btn-weekend" onclick="setDayType('Weekend')">Weekend</button>
+    </div>
+
+    <div class="congestion-meter">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 11px; color: #64748b;">City Congestion Level</span>
+        <span class="traffic-badge" id="traffic-state">—</span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" id="congestion-fill" style="width: 50%; background: #fbbf24;"></div>
+      </div>
+      <div class="meter-labels"><span>Free Flow</span><span>Moderate</span><span>Gridlock</span></div>
+      <div style="text-align: center; margin-top: 6px;">
+        <span style="font-size: 24px; font-weight: 800; color: #e0e6f0;" id="multiplier-value">1.00</span>
+        <span style="font-size: 11px; color: #64748b;">× travel time</span>
+      </div>
+    </div>
+
+    <!-- GPS Trajectory -->
+    <div class="trajectory-section">
+      <div class="section-title">GPS Trajectory Replay</div>
+      <select class="select-input" id="ambulance-select">
+        <option value="">Loading ambulances…</option>
+      </select>
+      <button class="btn btn-play" onclick="playTrajectory()">▶ Replay Trajectory</button>
+      <button class="btn btn-stop" onclick="stopTrajectory()">■ Stop</button>
+    </div>
+
+    <!-- Layer toggles -->
+    <div class="layer-toggles">
+      <div class="section-title">Map Layers</div>
+      <label class="toggle-row"><input type="checkbox" id="toggle-traffic" checked onchange="toggleTrafficLayer()"> Traffic Overlay</label>
+      <label class="toggle-row"><input type="checkbox" id="toggle-hospitals" checked onchange="toggleHospitalLayer()"> Hospital Markers</label>
+      <label class="toggle-row"><input type="checkbox" id="toggle-nodes" onchange="toggleNodeLayer()"> Network Nodes</label>
+    </div>
+  </div>
+
+  <div id="hospital-panel" class="glass-panel">
+    <div class="section-title">Hospital Capacity</div>
+    <div id="hospital-list"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ── State ──
+    let currentDayType = 'Weekday';
+    let currentHour = 12;
+    let graphData = null;
+    let hospitalData = null;
+    let trajectoryData = null;
+    let trafficLines = [];
+    let hospitalMarkers = [];
+    let nodeMarkers = [];
+    let trajectoryLine = null;
+    let trajectoryMarker = null;
+    let trajectoryInterval = null;
+    let showTraffic = true, showHospitals = true, showNodes = false;
+
+    // ── Map ──
+    const map = L.map('map', {
+      center: [13.05, 80.22], zoom: 12, zoomControl: false, attributionControl: false,
+    });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd',
+    }).addTo(map);
+
+    // ── Traffic colors ──
+    function getTrafficColor(multiplier) {
+      if (multiplier <= 1.0) return '#34d399';
+      if (multiplier <= 1.2) return '#6ee7b7';
+      if (multiplier <= 1.4) return '#fbbf24';
+      if (multiplier <= 1.6) return '#f59e0b';
+      if (multiplier <= 1.8) return '#fb923c';
+      return '#ef4444';
+    }
+
+    function getTrafficWeight(roadType) {
+      if (roadType === 'arterial') return 5;
+      if (roadType === 'collector') return 3.5;
+      return 2;
+    }
+
+    // ── Load all data ──
+    async function init() {
+      try {
+        const [graphRes, hospRes, trajRes] = await Promise.all([
+          fetch('/api/network/graph'),
+          fetch('/api/visualization/hospitals'),
+          fetch('/api/visualization/trajectories'),
+        ]);
+        graphData = await graphRes.json();
+        hospitalData = await hospRes.json();
+        trajectoryData = await trajRes.json();
+
+        renderTraffic();
+        renderHospitals();
+        populateAmbulanceSelector();
+        document.getElementById('loading').classList.add('hidden');
+      } catch (err) {
+        document.querySelector('#loading p').textContent = 'Failed to load data. Is backend running?';
+        console.error(err);
+      }
+    }
+
+    // ── Render traffic overlay ──
+    function renderTraffic() {
+      // Clear existing
+      trafficLines.forEach(l => map.removeLayer(l));
+      trafficLines = [];
+
+      const seenEdges = new Set();
+      for (const edge of graphData.edges) {
+        const fromNode = graphData.nodes.find(n => n.nodeId === edge.fromNodeId);
+        const toNode = graphData.nodes.find(n => n.nodeId === edge.toNodeId);
+        if (!fromNode || !toNode) continue;
+
+        const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join('-');
+        if (seenEdges.has(edgeKey)) continue;
+        seenEdges.add(edgeKey);
+
+        const color = getTrafficColor(edge.trafficMultiplier);
+        const weight = getTrafficWeight(edge.roadType);
+
+        const line = L.polyline(
+          [[fromNode.latitude, fromNode.longitude], [toNode.latitude, toNode.longitude]],
+          { color, weight, opacity: 0.8 }
+        );
+
+        line.bindPopup(`
+          <div style="font-weight:700;color:#60a5fa;margin-bottom:6px;">${edge.fromNodeId} → ${edge.toNodeId}</div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Road Type</span><span style="font-weight:600;">${edge.roadType}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Distance</span><span style="font-weight:600;">${edge.distanceKm} km</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Speed Limit</span><span style="font-weight:600;">${edge.speedLimitKmph} km/h</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Traffic</span><span class="traffic-badge traffic-${edge.trafficState}" style="padding:1px 6px;font-size:10px;">${edge.trafficState}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Multiplier</span><span style="font-weight:600;color:${color};">${edge.trafficMultiplier.toFixed(2)}×</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Base Time</span><span style="font-weight:600;">${edge.travelTimeMinutes.toFixed(1)} min</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Effective Time</span><span style="font-weight:600;color:${color};">${edge.adjustedTravelTime.toFixed(1)} min</span></div>
+        `);
+
+        if (showTraffic) line.addTo(map);
+        trafficLines.push(line);
+      }
+    }
+
+    // ── Update traffic for specific time ──
+    async function updateTraffic() {
+      currentHour = parseInt(document.getElementById('time-slider').value, 10);
+      
+      // Update display
+      const timeStr = `${String(currentHour).padStart(2, '0')}:00`;
+      document.getElementById('time-display').textContent = timeStr;
+
+      const periods = ['Night', 'Night', 'Night', 'Night', 'Dawn', 'Early Morning',
+        'Morning Rush', 'Morning', 'Morning Rush', 'Late Morning', 'Mid-Morning', 'Late Morning',
+        'Afternoon', 'Early Afternoon', 'Afternoon Rush', 'Afternoon Rush', 'Evening Rush', 'Evening',
+        'Evening Rush', 'Late Evening', 'Night', 'Night', 'Night', 'Late Night'];
+      document.getElementById('time-period').textContent = periods[currentHour];
+
+      try {
+        const res = await fetch(`/api/visualization/traffic?dayType=${currentDayType}&hour=${currentHour}`);
+        const data = await res.json();
+
+        // Update congestion meter
+        const multiplier = data.overallMultiplier;
+        document.getElementById('multiplier-value').textContent = multiplier.toFixed(2);
+        
+        const stateEl = document.getElementById('traffic-state');
+        stateEl.textContent = data.overallState;
+        stateEl.className = `traffic-badge traffic-${data.overallState}`;
+
+        const congestionPct = Math.min(100, ((multiplier - 0.9) / 1.2) * 100);
+        const fillEl = document.getElementById('congestion-fill');
+        fillEl.style.width = congestionPct + '%';
+        fillEl.style.background = getTrafficColor(multiplier);
+
+        // Update edge colors
+        const edgeMap = new Map();
+        for (const e of data.edges) {
+          const key = [e.fromNodeId, e.toNodeId].sort().join('-');
+          edgeMap.set(key, e);
+        }
+
+        const seenEdges = new Set();
+        for (let i = 0; i < graphData.edges.length; i++) {
+          const edge = graphData.edges[i];
+          const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join('-');
+          if (seenEdges.has(edgeKey)) continue;
+          seenEdges.add(edgeKey);
+        }
+
+        // Re-render traffic with updated data
+        trafficLines.forEach(l => map.removeLayer(l));
+        trafficLines = [];
+
+        const seenEdges2 = new Set();
+        for (const edge of graphData.edges) {
+          const fromNode = graphData.nodes.find(n => n.nodeId === edge.fromNodeId);
+          const toNode = graphData.nodes.find(n => n.nodeId === edge.toNodeId);
+          if (!fromNode || !toNode) continue;
+
+          const edgeKey = [edge.fromNodeId, edge.toNodeId].sort().join('-');
+          if (seenEdges2.has(edgeKey)) continue;
+          seenEdges2.add(edgeKey);
+
+          const dataEdge = edgeMap.get(edgeKey);
+          const mult = dataEdge ? dataEdge.trafficMultiplier : multiplier;
+          const state = dataEdge ? dataEdge.trafficState : data.overallState;
+          const color = getTrafficColor(mult);
+          const weight = getTrafficWeight(edge.roadType);
+
+          const line = L.polyline(
+            [[fromNode.latitude, fromNode.longitude], [toNode.latitude, toNode.longitude]],
+            { color, weight, opacity: 0.8 }
+          );
+          line.bindPopup(`
+            <div style="font-weight:700;color:#60a5fa;margin-bottom:6px;">${edge.fromNodeId} → ${edge.toNodeId}</div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Road Type</span><span style="font-weight:600;">${edge.roadType}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Distance</span><span style="font-weight:600;">${edge.distanceKm} km</span></div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Traffic</span><span class="traffic-badge traffic-${state}" style="padding:1px 6px;font-size:10px;">${state}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:#64748b;">Multiplier</span><span style="font-weight:600;color:${color};">${mult.toFixed(2)}×</span></div>
+          `);
+
+          if (showTraffic) line.addTo(map);
+          trafficLines.push(line);
+        }
+      } catch (err) {
+        console.error('Failed to update traffic:', err);
+      }
+    }
+
+    function setDayType(type) {
+      currentDayType = type;
+      document.getElementById('btn-weekday').classList.toggle('active', type === 'Weekday');
+      document.getElementById('btn-weekend').classList.toggle('active', type === 'Weekend');
+      updateTraffic();
+    }
+
+    // ── Render hospitals ──
+    function renderHospitals() {
+      const list = document.getElementById('hospital-list');
+      list.innerHTML = '';
+
+      for (const h of hospitalData.hospitals) {
+        const cap = h.capacity || {};
+        const icuPct = cap.icuBedsTotal > 0 ? (cap.icuBedsAvailable / cap.icuBedsTotal) * 100 : 0;
+        const bedPct = cap.emergencyBedsTotal > 0 ? (cap.emergencyBedsAvailable / cap.emergencyBedsTotal) * 100 : 0;
+        const ventPct = cap.ventilatorsTotal > 0 ? (cap.ventilatorsAvailable / cap.ventilatorsTotal) * 100 : 0;
+
+        // Map marker
+        const fillColor = bedPct > 50 ? '#34d399' : (bedPct > 20 ? '#fbbf24' : '#ef4444');
+        const radius = Math.max(6, Math.min(14, (cap.emergencyBedsTotal || 10) / 3));
+        
+        const marker = L.circleMarker([h.location.latitude, h.location.longitude], {
+          radius, fillColor, color: 'rgba(255,255,255,0.3)', weight: 1.5, fillOpacity: 0.85,
+        });
+        marker.bindPopup(`
+          <div style="font-weight:700;color:#60a5fa;font-size:14px;margin-bottom:6px;">${h.name}</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;">${h.id} • ${h.area || ''}</div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#64748b;">ICU Beds</span><span style="font-weight:600;">${cap.icuBedsAvailable || 0}/${cap.icuBedsTotal || 0}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#64748b;">ER Beds</span><span style="font-weight:600;">${cap.emergencyBedsAvailable || 0}/${cap.emergencyBedsTotal || 0}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#64748b;">Ventilators</span><span style="font-weight:600;">${cap.ventilatorsAvailable || 0}/${cap.ventilatorsTotal || 0}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#64748b;">Trauma</span><span style="font-weight:600;">${h.traumaCapable ? '✓' : '✗'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:#64748b;">Cardiac</span><span style="font-weight:600;">${h.cardiacCapable ? '✓' : '✗'}</span></div>
+        `);
+        if (showHospitals) marker.addTo(map);
+        hospitalMarkers.push(marker);
+
+        // Side panel item
+        const capColor = (pct) => pct > 50 ? '#34d399' : (pct > 20 ? '#fbbf24' : '#ef4444');
+        const div = document.createElement('div');
+        div.className = 'hospital-item';
+        div.innerHTML = `
+          <div class="hospital-name">${h.id} — ${h.name.length > 30 ? h.name.substring(0, 28) + '…' : h.name}</div>
+          <div style="font-size:10px;color:#475569;">${h.area || ''} ${h.traumaCapable ? '🔺Trauma' : ''} ${h.cardiacCapable ? '❤️Cardiac' : ''}</div>
+          <div class="capacity-bar">
+            <div class="cap-item">
+              <div class="cap-label">ICU</div>
+              <div class="cap-mini-bar"><div class="cap-mini-fill" style="width:${icuPct}%;background:${capColor(icuPct)};"></div></div>
+            </div>
+            <div class="cap-item">
+              <div class="cap-label">ER</div>
+              <div class="cap-mini-bar"><div class="cap-mini-fill" style="width:${bedPct}%;background:${capColor(bedPct)};"></div></div>
+            </div>
+            <div class="cap-item">
+              <div class="cap-label">VENT</div>
+              <div class="cap-mini-bar"><div class="cap-mini-fill" style="width:${ventPct}%;background:${capColor(ventPct)};"></div></div>
+            </div>
+          </div>
+        `;
+        div.onclick = () => map.setView([h.location.latitude, h.location.longitude], 15);
+        list.appendChild(div);
+      }
+    }
+
+    // ── Ambulance selector ──
+    function populateAmbulanceSelector() {
+      const select = document.getElementById('ambulance-select');
+      select.innerHTML = '<option value="">— Select Ambulance —</option>';
+      for (const ambId of trajectoryData.availableAmbulances) {
+        const opt = document.createElement('option');
+        opt.value = ambId;
+        opt.textContent = ambId;
+        select.appendChild(opt);
+      }
+    }
+
+    // ── GPS Trajectory replay ──
+    function playTrajectory() {
+      const ambId = document.getElementById('ambulance-select').value;
+      if (!ambId) return alert('Select an ambulance first');
+
+      stopTrajectory();
+
+      const points = trajectoryData.trajectories.filter(t => t.ambulanceId === ambId);
+      if (points.length === 0) return alert('No GPS data for this ambulance');
+
+      const coords = points.map(p => [p.latitude, p.longitude]);
+
+      // Draw full trajectory path
+      trajectoryLine = L.polyline([], {
+        color: '#a78bfa', weight: 3, opacity: 0.7,
+      }).addTo(map);
+
+      trajectoryMarker = L.circleMarker(coords[0], {
+        radius: 8, fillColor: '#a78bfa', color: '#fff', weight: 2, fillOpacity: 1,
+      }).addTo(map);
+
+      map.fitBounds(L.latLngBounds(coords).pad(0.2));
+
+      let i = 0;
+      trajectoryInterval = setInterval(() => {
+        if (i >= coords.length) {
+          clearInterval(trajectoryInterval);
+          trajectoryInterval = null;
+          return;
+        }
+        trajectoryMarker.setLatLng(coords[i]);
+        trajectoryLine.addLatLng(coords[i]);
+        
+        const point = points[i];
+        trajectoryMarker.bindPopup(`
+          <div style="font-weight:700;color:#a78bfa;">${ambId}</div>
+          <div style="color:#64748b;font-size:11px;">Point ${i + 1}/${coords.length}</div>
+          <div style="margin-top:4px;">Speed: <b>${point.speedKmph.toFixed(1)} km/h</b></div>
+          <div>Heading: <b>${point.headingDeg.toFixed(0)}°</b></div>
+          <div>Status: <b>${point.status}</b></div>
+        `);
+        
+        i++;
+      }, 100);
+    }
+
+    function stopTrajectory() {
+      if (trajectoryInterval) { clearInterval(trajectoryInterval); trajectoryInterval = null; }
+      if (trajectoryLine) { map.removeLayer(trajectoryLine); trajectoryLine = null; }
+      if (trajectoryMarker) { map.removeLayer(trajectoryMarker); trajectoryMarker = null; }
+    }
+
+    // ── Layer toggles ──
+    function toggleTrafficLayer() {
+      showTraffic = document.getElementById('toggle-traffic').checked;
+      trafficLines.forEach(l => showTraffic ? l.addTo(map) : map.removeLayer(l));
+    }
+
+    function toggleHospitalLayer() {
+      showHospitals = document.getElementById('toggle-hospitals').checked;
+      hospitalMarkers.forEach(m => showHospitals ? m.addTo(map) : map.removeLayer(m));
+    }
+
+    function toggleNodeLayer() {
+      showNodes = document.getElementById('toggle-nodes').checked;
+      if (showNodes && nodeMarkers.length === 0) {
+        for (const node of graphData.nodes) {
+          if (node.type === 'Hospital') continue; // Already shown as hospital markers
+          const marker = L.circleMarker([node.latitude, node.longitude], {
+            radius: 5, fillColor: '#f87171', color: 'rgba(255,255,255,0.2)', weight: 1, fillOpacity: 0.7,
+          }).addTo(map).bindPopup(`<b>${node.nodeId}</b><br>${node.name}`);
+          nodeMarkers.push(marker);
+        }
+      } else {
+        nodeMarkers.forEach(m => showNodes ? m.addTo(map) : map.removeLayer(m));
+      }
+    }
+
+    // ── Init ──
+    init();
+  </script>
+</body>
+</html>

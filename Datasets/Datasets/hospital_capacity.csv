@@ -1,0 +1,31 @@
+hospital_id,hospital_name,icu_beds_total,icu_beds_available,emergency_beds_total,emergency_beds_available,ventilators_total,ventilators_available,trauma_capable,cardiac_capable,status,updated_at
+H001,Rajiv Gandhi Government General Hospital,6,6,52,32,14,0,True,True,AT_CAPACITY,2026-09-07 22:53:00
+H002,Government Stanley Medical College Hospital,16,7,40,39,17,17,False,True,OPERATIONAL,2026-09-07 21:56:00
+H003,Government Kilpauk Medical College Hospital,14,1,24,9,12,2,True,False,OPERATIONAL,2026-09-07 22:29:00
+H004,Government Royapettah Hospital,20,13,56,11,18,10,False,False,OPERATIONAL,2026-09-07 22:47:00
+H005,Government Omandurar Medical College Hospital,20,19,40,5,16,11,True,True,AT_CAPACITY,2026-09-07 22:47:00
+H006,Institute of Child Health and Hospital for Children,21,20,23,12,20,3,True,True,OPERATIONAL,2026-09-07 20:13:00
+H007,Apollo Hospitals Greams Road,22,4,35,24,4,1,True,True,OPERATIONAL,2026-09-07 23:30:00
+H008,Fortis Malar Hospital,30,4,39,34,16,12,True,False,OPERATIONAL,2026-09-07 21:47:00
+H009,MIOT International,10,8,32,26,16,15,True,True,OPERATIONAL,2026-09-07 23:20:00
+H010,Sri Ramachandra Medical Centre,21,1,46,10,13,1,False,False,OPERATIONAL,2026-09-07 23:27:00
+H011,Madras Medical Mission,12,5,20,4,8,4,True,True,OPERATIONAL,2026-09-07 20:29:00
+H012,Sundaram Medical Foundation,29,0,39,33,5,2,False,True,OPERATIONAL,2026-09-07 21:27:00
+H013,SIMS Hospital,18,5,19,3,18,11,False,True,OPERATIONAL,2026-09-07 23:58:00
+H014,Vijaya Hospital,26,10,38,12,11,1,True,True,OPERATIONAL,2026-09-07 20:05:00
+H015,Kauvery Hospital,19,19,16,7,14,4,True,True,OPERATIONAL,2026-09-07 20:57:00
+H016,Apollo Speciality Hospital OMR,28,19,22,2,4,1,False,True,AT_CAPACITY,2026-09-07 20:13:00
+H017,Gleneagles HealthCity Chennai,29,25,29,26,7,4,False,False,OPERATIONAL,2026-09-07 20:20:00
+H018,Chettinad Hospital and Research Institute,6,4,49,14,19,8,True,False,OPERATIONAL,2026-09-07 20:25:00
+H019,Dr. Kamakshi Memorial Hospital,26,18,44,34,19,4,True,True,OPERATIONAL,2026-09-07 23:36:00
+H020,Prashanth Super Speciality Hospital,9,2,42,14,20,2,True,False,OPERATIONAL,2026-09-07 21:06:00
+H021,Hindu Mission Hospital,29,16,48,6,6,5,True,True,OPERATIONAL,2026-09-07 22:22:00
+H022,Government Hospital Tambaram,10,6,34,22,9,7,True,False,AT_CAPACITY,2026-09-07 20:33:00
+H023,ESIC Medical College and Hospital,12,5,58,32,14,7,True,True,AT_CAPACITY,2026-09-07 22:32:00
+H024,Billroth Hospitals,10,4,41,32,10,8,False,True,OPERATIONAL,2026-09-07 21:54:00
+H025,Apollo Hospitals Tondiarpet,26,9,24,9,14,11,True,False,OPERATIONAL,2026-09-07 23:31:00
+H026,CSI Rainy Multispeciality Hospital,8,8,44,11,20,17,True,True,OPERATIONAL,2026-09-07 22:34:00
+H027,MGM Healthcare,17,5,29,16,20,15,True,False,OPERATIONAL,2026-09-07 21:59:00
+H028,Kauvery Hospital Alwarpet,19,1,39,34,16,4,True,False,OPERATIONAL,2026-09-07 21:00:00
+H029,Adyar Cancer Institute,28,2,47,46,18,4,True,True,OPERATIONAL,2026-09-07 21:05:00
+H030,Government Hospital of Thoracic Medicine,12,8,60,23,16,6,True,False,OPERATIONAL,2026-09-07 22:19:00

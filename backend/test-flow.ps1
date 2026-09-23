@@ -8,12 +8,12 @@ Write-Host ""
 # Step 1: Login as Bystander
 Write-Host "1. Logging in as Bystander..." -ForegroundColor Yellow
 try {
-    $login = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/auth/login" -ContentType "application/json" -Body '{"email":"bystander@uyirkappan.demo","password":"password123"}'
+    $login = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/login" -ContentType "application/json" -Body '{"email":"bystander@uyirkappan.demo","password":"password123"}'
     $token = $login.token
     Write-Host "   [OK] Bystander logged in" -ForegroundColor Green
 } catch {
     Write-Host "   [FAIL] Login failed: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "   Make sure the server is running on http://localhost:4000" -ForegroundColor Red
+    Write-Host "   Make sure the server is running on http://localhost:5000" -ForegroundColor Red
     exit
 }
 
@@ -34,7 +34,7 @@ $body = @{
 } | ConvertTo-Json
 
 try {
-    $response = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/emergency" -Headers $headers -Body $body
+    $response = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/emergency" -Headers $headers -Body $body
     $requestId = $response.requestId
     $assignmentId = $response.assignmentId
     Write-Host "   [OK] Emergency created: $requestId" -ForegroundColor Green
@@ -50,7 +50,7 @@ try {
 Write-Host ""
 Write-Host "3. Logging in as Driver 1..." -ForegroundColor Yellow
 try {
-    $driver1 = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/auth/login" -ContentType "application/json" -Body '{"email":"driver1@uyirkappan.demo","password":"password123"}'
+    $driver1 = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/login" -ContentType "application/json" -Body '{"email":"driver1@uyirkappan.demo","password":"password123"}'
     $driver1Token = $driver1.token
     Write-Host "   [OK] Driver 1 logged in" -ForegroundColor Green
 } catch {
@@ -65,7 +65,7 @@ $headers1 = @{
     "Authorization" = "Bearer $driver1Token"
 }
 try {
-    $reject = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/assignments/$assignmentId/reject" -Headers $headers1
+    $reject = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/assignments/$assignmentId/reject" -Headers $headers1
     Write-Host "   [OK] Driver 1 rejected - Fallback triggered!" -ForegroundColor Green
     Write-Host "   $($reject.message)" -ForegroundColor Gray
 } catch {
@@ -83,7 +83,7 @@ Write-Host "   [OK] Done" -ForegroundColor Green
 Write-Host ""
 Write-Host "6. Logging in as Driver 2..." -ForegroundColor Yellow
 try {
-    $driver2 = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/auth/login" -ContentType "application/json" -Body '{"email":"driver2@uyirkappan.demo","password":"password123"}'
+    $driver2 = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/auth/login" -ContentType "application/json" -Body '{"email":"driver2@uyirkappan.demo","password":"password123"}'
     $driver2Token = $driver2.token
     Write-Host "   [OK] Driver 2 logged in" -ForegroundColor Green
 } catch {
@@ -99,7 +99,7 @@ $headers2 = @{
     "Content-Type" = "application/json"
 }
 try {
-    $assignment2 = Invoke-RestMethod -Method Get -Uri "http://localhost:4000/api/driver/assignment" -Headers $headers2
+    $assignment2 = Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/driver/assignment" -Headers $headers2
     if ($assignment2.assignment) {
         $newAssignmentId = $assignment2.assignment.id
         Write-Host "   [OK] Driver 2 received assignment: $newAssignmentId" -ForegroundColor Green
@@ -119,7 +119,7 @@ try {
 Write-Host ""
 Write-Host "8. Driver 2 accepting assignment..." -ForegroundColor Yellow
 try {
-    $accept = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/assignments/$newAssignmentId/accept" -Headers $headers2
+    $accept = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/assignments/$newAssignmentId/accept" -Headers $headers2
     Write-Host "   [OK] Driver 2 accepted! ETA: $($accept.eta) minutes" -ForegroundColor Green
 } catch {
     Write-Host "   [FAIL] Accept failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -144,7 +144,7 @@ foreach ($s in $statuses) {
     Write-Host "   Sending status: $s" -ForegroundColor Gray
     Write-Host "   Body: $statusBody" -ForegroundColor DarkGray
     try {
-        $status = Invoke-RestMethod -Method Patch -Uri "http://localhost:4000/api/assignments/$newAssignmentId/status" -Headers $headers2 -Body $statusBody
+        $status = Invoke-RestMethod -Method Patch -Uri "http://localhost:5000/api/assignments/$newAssignmentId/status" -Headers $headers2 -Body $statusBody
         Write-Host "   $counter. [OK] Status: $s" -ForegroundColor Green
         $counter++
         Start-Sleep -Milliseconds 500
@@ -167,7 +167,7 @@ $locationBody = @{
     heading = 90
 } | ConvertTo-Json
 try {
-    $location = Invoke-RestMethod -Method Post -Uri "http://localhost:4000/api/ambulances/AMB-02/location" -Headers $headers2 -Body $locationBody
+    $location = Invoke-RestMethod -Method Post -Uri "http://localhost:5000/api/ambulances/AMB-02/location" -Headers $headers2 -Body $locationBody
     Write-Host "   [OK] Location sent! ETA: $($location.eta) minutes" -ForegroundColor Green
 } catch {
     Write-Host "   [FAIL] Location update failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -179,7 +179,7 @@ Write-Host ""
 Write-Host "11. Checking final status..." -ForegroundColor Yellow
 try {
     Start-Sleep -Seconds 1
-    $final = Invoke-RestMethod -Method Get -Uri "http://localhost:4000/api/emergency/$requestId" -Headers $headers
+    $final = Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/emergency/$requestId" -Headers $headers
     Write-Host "   [OK] Final Status: $($final.request.status)" -ForegroundColor Green
     Write-Host ""
     Write-Host "   Attempt History:" -ForegroundColor Cyan
@@ -195,7 +195,7 @@ try {
 Write-Host ""
 Write-Host "12. Checking ambulance availability..." -ForegroundColor Yellow
 try {
-    $ambulance = Invoke-RestMethod -Method Get -Uri "http://localhost:4000/api/ambulances/AMB-02" -Headers $headers2
+    $ambulance = Invoke-RestMethod -Method Get -Uri "http://localhost:5000/api/ambulances/AMB-02" -Headers $headers2
     Write-Host "   [OK] AMB-02 status: $($ambulance.ambulance.status)" -ForegroundColor Green
 } catch {
     Write-Host "   [FAIL] Failed to check ambulance: $($_.Exception.Message)" -ForegroundColor Red

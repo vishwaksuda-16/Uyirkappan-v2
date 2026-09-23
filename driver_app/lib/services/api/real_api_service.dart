@@ -21,6 +21,7 @@ class RealApiService implements ApiService {
     http.Client? client,
   }) : _client = client ?? http.Client();
 
+  @override
   void setAuthToken(String? token) {
     _authToken = token;
   }
@@ -43,12 +44,11 @@ class RealApiService implements ApiService {
     try {
       final isEmail = identifier.contains('@');
       final email = isEmail
-          ? identifier
-          : (identifier == 'DRV-001'
-              ? 'driver1@uyirkappan.demo'
-              : '$identifier@uyirkappan.demo');
+          ? identifier.trim().toLowerCase()
+          : '${identifier.trim().toLowerCase()}@uyirkappan.demo';
 
-      // Backend reads only `email` and `password` — `driverId` is ignored but harmless
+      // Dataset driver IDs are canonical login identifiers (for example
+      // DRV0001 -> drv0001@uyirkappan.demo).
       final response = await _client
           .post(
             _buildUri('/auth/login'),
@@ -230,13 +230,26 @@ class RealApiService implements ApiService {
         if (data == null || (data is Map && data['success'] == false)) {
           return null;
         }
-        final map = (data is Map<String, dynamic>)
-            ? (data['assignment'] is Map<String, dynamic>
-                ? data['assignment'] as Map<String, dynamic>
-                : data)
-            : <String, dynamic>{};
-        if (map.isEmpty) return null;
-        return Assignment.fromJson(map);
+        if (data is Map<String, dynamic>) {
+          // If backend returns { success: true, assignment: null, message: 'No active assignment' }
+          if (data.containsKey('assignment')) {
+            final a = data['assignment'];
+            if (a == null) return null;
+            if (a is Map<String, dynamic>) {
+              if (!a.containsKey('id') && !a.containsKey('assignmentId') && !a.containsKey('requestId')) {
+                return null;
+              }
+              return Assignment.fromJson(a);
+            }
+            return null;
+          }
+          // Direct assignment object from server
+          if (data.containsKey('id') || data.containsKey('assignmentId')) {
+            return Assignment.fromJson(data);
+          }
+          return null;
+        }
+        return null;
       } else if (response.statusCode == 404) {
         return null;
       } else if (response.statusCode == 401) {
@@ -325,10 +338,14 @@ class RealApiService implements ApiService {
         return;
       } else if (response.statusCode == 401) {
         throw const UnauthorizedException('Driver session expired.');
+      } else if (response.statusCode == 403) {
+        throw const ForbiddenException('Forbidden: cannot reject this assignment.');
       } else if (response.statusCode == 404) {
         throw const NotFoundException('Assignment not found.');
       } else if (response.statusCode == 409) {
         throw const ConflictException('Assignment already expired or transitioned.');
+      } else {
+        throw AppException('Failed to reject assignment: ${response.statusCode}');
       }
     } on AppException {
       rethrow;

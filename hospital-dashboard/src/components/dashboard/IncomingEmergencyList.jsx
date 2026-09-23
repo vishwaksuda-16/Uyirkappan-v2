@@ -44,7 +44,7 @@ export function IncomingEmergencyList({
         return (
           <div
             key={emergency.requestId}
-            onClick={() => navigate(`/emergencies/${emergency.requestId}`)}
+            onClick={() => navigate(`/emergency/${emergency.requestId}`)}
             style={{
               backgroundColor: 'var(--bg-card)',
               border: `1px solid ${isCritical ? 'var(--status-critical-border)' : 'var(--border-default)'}`,

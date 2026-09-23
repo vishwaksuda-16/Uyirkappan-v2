@@ -277,7 +277,7 @@ COMPLETED (Terminal)
 
 ## 5. Real-Time Socket.IO Event Contract
 
-Module 1 connects to the backend Socket.IO server at `http://localhost:4000` (or `API_BASE_URL`):
+Module 1 connects to the backend Socket.IO server at `http://localhost:5000` (or `API_BASE_URL`):
 
 - **Transport**: `websocket`, `polling` fallback
 - **Auth Handshake**: `{ token: "<JWT-Token>" }`
@@ -328,7 +328,7 @@ To support response time benchmarking and viva evaluations:
 Module 1 features an **Adaptive Architecture** with a one-tap switch in the top header:
 
 - **`[⚡ LIVE BACKEND]` Mode**:
-  - Connects to the real Node.js / Express backend at `http://localhost:4000`.
+  - Connects to the real Node.js / Express backend at `http://localhost:5000`.
   - Uses `RemoteEmergencyRequestDataSource` and `RemoteTrackingDataSource`.
   - Transmits JWT token in `Authorization: Bearer <token>` headers.
   - Subscribes to live Socket.IO events.
@@ -345,7 +345,7 @@ You can configure the backend target at compile or run time via `--dart-define`:
 # Connect to custom live backend URL
 flutter run -d chrome --dart-define=API_BASE_URL=https://api.uyirkappan.org --dart-define=IS_SIMULATION=false
 
-# Default development backend (http://localhost:4000)
+# Default development backend (http://localhost:5000)
 flutter run -d chrome
 ```
 
@@ -358,5 +358,5 @@ flutter run -d chrome
 | **Email** | `bystander@uyirkappan.demo` |
 | **Password** | `password123` |
 | **Role** | `BYSTANDER` |
-| **Backend REST Base** | `http://localhost:4000/api` |
-| **Socket.IO Host** | `http://localhost:4000` |
+| **Backend REST Base** | `http://localhost:5000/api` |
+| **Socket.IO Host** | `http://localhost:5000` |

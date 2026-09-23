@@ -70,6 +70,10 @@ class DriverRepositoryImpl implements DriverRepository {
       _socketService.onHospitalAssigned;
 
   @override
+  Stream<Map<String, dynamic>> get onDemoAssignmentCreated =>
+      _socketService.onDemoAssignmentCreated;
+
+  @override
   Stream<AmbulanceLocation> get locationStream =>
       _locationService.locationStream;
 
@@ -94,10 +98,15 @@ class DriverRepositoryImpl implements DriverRepository {
     final driverId = await _storage.getDriverId();
     if (driverId == null || driverId.isEmpty) return null;
     try {
+      final token = await _storage.getAuthToken();
+      if (token != null && token.isNotEmpty) {
+        _apiService.setAuthToken(token);
+      }
       final driver = await _apiService.getDriverProfile(driverId);
       await _socketService.connect();
       return driver;
     } catch (_) {
+      await _storage.clearAuth();
       return null;
     }
   }

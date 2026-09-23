@@ -43,20 +43,22 @@ class Hospital {
   factory Hospital.fromJson(Map<String, dynamic> json) {
     final locJson = json['location'] as Map<String, dynamic>? ?? {};
     return Hospital(
-      hospitalId: json['hospitalId'] as String,
-      name: json['name'] as String,
+      hospitalId: (json['hospitalId'] ?? json['id'] ?? 'H001') as String,
+      name: (json['name'] ?? json['hospitalName'] ?? 'Destination Hospital') as String,
       location: GeoPoint(
         (locJson['latitude'] as num?)?.toDouble() ?? 13.0600,
         (locJson['longitude'] as num?)?.toDouble() ?? 80.2500,
       ),
-      address: json['address'] as String? ?? 'Greams Road, Chennai',
+      address: json['address'] as String? ?? 'Chennai, Tamil Nadu',
       distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 6.4,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt() ?? 11,
-      availableBeds: (json['availableBeds'] as num?)?.toInt() ?? 4,
+      availableBeds: (json['availableBeds'] as num?)?.toInt() ??
+          (json['generalBeds'] as num?)?.toInt() ??
+          4,
       specialties: (json['specialties'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
-          const ['Trauma Center'],
+          const ['Trauma Center', 'Emergency ICU'],
       emergencyContact: json['emergencyContact'] as String? ?? '+91 44 2829 0200',
     );
   }

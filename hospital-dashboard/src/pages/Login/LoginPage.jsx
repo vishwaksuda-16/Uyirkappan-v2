@@ -1,18 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import hospitalApi from '../../services/hospitalApi';
 import { Activity, ShieldCheck, Lock, Mail, Building2, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('staff@uyirkappan.demo');
+  const [hospitals, setHospitals] = useState([
+    { id: 'H001', name: 'Rajiv Gandhi Government General Hospital' },
+    { id: 'H004', name: 'Government Royapettah Hospital' },
+    { id: 'H007', name: 'Apollo Hospitals - Greams Road' },
+    { id: 'H027', name: 'MGM Healthcare - Nelson Manickam Road' },
+  ]);
+  const [hospitalId, setHospitalId] = useState('H001');
+  const [email, setEmail] = useState('staff.h001@uyirkappan.demo');
   const [password, setPassword] = useState('password123');
-  const [hospitalId, setHospitalId] = useState('HOSP-01');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  useEffect(() => {
+    hospitalApi.getHospitals().then((list) => {
+      if (Array.isArray(list) && list.length > 0) {
+        setHospitals(list);
+        setHospitalId(list[0].id);
+        setEmail(`staff.${list[0].id.toLowerCase()}@uyirkappan.demo`);
+      }
+    }).catch((err) => {
+      console.warn('Could not fetch hospitals dynamically, using defaults', err);
+    });
+  }, []);
+
+  const handleHospitalChange = (e) => {
+    const selected = e.target.value;
+    setHospitalId(selected);
+    setEmail(`staff.${selected.toLowerCase()}@uyirkappan.demo`);
+  };
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {
@@ -198,7 +222,7 @@ export function LoginPage() {
                 <select
                   id="hospitalSelect"
                   value={hospitalId}
-                  onChange={(e) => setHospitalId(e.target.value)}
+                  onChange={handleHospitalChange}
                   disabled={isSubmitting}
                   style={{
                     width: '100%',
@@ -210,9 +234,11 @@ export function LoginPage() {
                     fontSize: '13px',
                   }}
                 >
-                  <option value="HOSP-01">Apollo Trauma &amp; Emergency Center (HOSP-01)</option>
-                  <option value="H02">Madras Medical Mission Super Specialty (H02)</option>
-                  <option value="H03">MIOT International Multi-Speciality Bay (H03)</option>
+                  {hospitals.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} ({h.id})
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

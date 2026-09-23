@@ -3,6 +3,8 @@ import '../../../core/errors/exceptions.dart';
 import '../../../core/errors/failures.dart';
 import '../models/emergency_request_model.dart';
 import '../../../domain/entities/emergency_request.dart';
+import '../../../domain/entities/emergency_type.dart';
+import '../../../domain/entities/location_data.dart';
 import '../../../domain/entities/request_status.dart';
 import '../../../domain/repositories/emergency_request_repository.dart';
 import '../datasources/emergency_request_datasource.dart';
@@ -18,6 +20,27 @@ class EmergencyRequestRepositoryImpl implements EmergencyRequestRepository {
     required this.dataSource,
     required this.localDataSource,
   });
+
+  @override
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  }) async {
+    try {
+      return await dataSource.recommendHospitalDestination(
+        emergencyType: emergencyType,
+        victimCount: victimCount,
+        emergencyLocation: emergencyLocation,
+      );
+    } on ServerException catch (e) {
+      throw ServerFailure(e.message, e.statusCode, e.code);
+    } on NetworkException catch (e) {
+      throw NetworkFailure(e.message);
+    } catch (e) {
+      throw ServerFailure('Failed to recommend hospital: $e');
+    }
+  }
 
   @override
   Future<EmergencyRequest> submitEmergencyRequest(EmergencyRequest request) async {

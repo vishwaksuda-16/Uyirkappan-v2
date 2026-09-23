@@ -19,7 +19,7 @@ class SocketEvent {
   String toString() => 'SocketEvent(event: $event, data: $data)';
 }
 
-/// Service managing Socket.IO connection to http://localhost:4000
+/// Service managing Socket.IO connection to http://localhost:5000
 /// and listening for real-time dispatch and tracking events.
 class SocketService {
   io.Socket? _socket;
@@ -35,7 +35,7 @@ class SocketService {
 
   bool _loggedConnectError = false;
 
-  /// Connect to Socket.IO backend at http://localhost:4000 with JWT authentication
+  /// Connect to Socket.IO backend at http://localhost:5000 with JWT authentication
   void connect({String? token, String? url}) {
     disconnect();
     final socketUrl = url ?? ApiConstants.socketUrl;

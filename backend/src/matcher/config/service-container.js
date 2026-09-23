@@ -17,6 +17,7 @@ const dispatch_engine_service_js_1 = require("../modules/dispatch/dispatch-engin
 const traffic_service_js_1 = require("../modules/traffic/traffic.service.js");
 const dijkstra_service_js_1 = require("../modules/routing/dijkstra.service.js");
 const nearest_node_service_js_1 = require("../modules/routing/nearest-node.service.js");
+const { NearestSegmentService } = require("../modules/routing/nearest-segment.service.js");
 const virtual_road_network_js_1 = require("../modules/routing/virtual-road-network.js");
 /*
  * ============================================================
@@ -72,7 +73,8 @@ function createServiceContainer(io) {
      */
     const graphService = (0, virtual_road_network_js_1.createVirtualRoadNetwork)();
     const trafficService = new traffic_service_js_1.TrafficService();
-    const dijkstraService = new dijkstra_service_js_1.DijkstraService(graphService, trafficService);
+    const nearestSegmentService = new NearestSegmentService();
+    const dijkstraService = new dijkstra_service_js_1.DijkstraService(graphService, trafficService, nearestSegmentService);
     const nearestNodeService = new nearest_node_service_js_1.NearestNodeService(graphService);
     /*
      * ==========================================================
@@ -87,7 +89,7 @@ function createServiceContainer(io) {
      */
     const candidateFilterService = new candidate_filter_service_js_1.CandidateFilterService();
     const scoringService = new scoring_service_js_1.ScoringService();
-    const dispatchEngineService = new dispatch_engine_service_js_1.DispatchEngineService(candidateFilterService, etaService, scoringService);
+    const dispatchEngineService = new dispatch_engine_service_js_1.DispatchEngineService(candidateFilterService, etaService, scoringService, dijkstraService);
     /*
      * ==========================================================
      * MODULE 6 — ASSIGNMENT
@@ -184,6 +186,7 @@ function createServiceContainer(io) {
         trafficService,
         dijkstraService,
         nearestNodeService,
+        nearestSegmentService,
         /*
          * --------------------------------------------------------
          * ETA

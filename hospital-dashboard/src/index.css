@@ -1,6 +1,6 @@
 /* ==========================================================================
    UyirKappan Emergency Operations Center (EOC) - Design System
-   Hospital Dashboard Module 3
+   Hospital Dashboard Module 3 — Enhanced for Research Evidence Mode
    ========================================================================== */
 
 :root {
@@ -11,11 +11,13 @@
   --bg-card-hover: #192640;
   --bg-input: #1a253c;
   --bg-elevated: #1e293b;
+  --bg-surface: #162032;
 
   /* Border & Divider Colors */
   --border-subtle: #1e293b;
   --border-default: #2a3754;
   --border-focus: #38bdf8;
+  --border-prominent: #3b5998;
 
   /* Text Colors */
   --text-primary: #f8fafc;
@@ -44,14 +46,42 @@
   --status-purple-bg: rgba(168, 85, 247, 0.12);
   --status-purple-border: rgba(168, 85, 247, 0.35);
 
+  /* Route Colors */
+  --route-uyirkappan: #10b981;
+  --route-uyirkappan-bg: rgba(16, 185, 129, 0.15);
+  --route-baseline: #64748b;
+  --route-baseline-bg: rgba(100, 116, 139, 0.15);
+
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography Scale */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
 
   /* Transitions & Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.45), 0 4px 6px -4px rgba(0, 0, 0, 0.45);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
   --shadow-glow-red: 0 0 15px rgba(239, 68, 68, 0.3);
   --shadow-glow-green: 0 0 15px rgba(16, 185, 129, 0.3);
   --shadow-glow-blue: 0 0 15px rgba(14, 165, 233, 0.3);
@@ -59,7 +89,12 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-full: 9999px;
+
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.15s ease;
+  --transition-slow: 0.3s ease;
 }
 
 *, *::before, *::after {
@@ -122,7 +157,10 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-/* Common Operational Animations */
+/* ========================================================================
+   Common Operational Animations
+   ======================================================================== */
+
 @keyframes pulse-dot {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 1; }
@@ -139,6 +177,31 @@ a:focus-visible {
   50% { border-color: rgba(239, 68, 68, 0.9); box-shadow: var(--shadow-glow-red); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes progressFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
 .animate-pulse-dot {
   animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -151,7 +214,18 @@ a:focus-visible {
   animation: flash-urgent 2s ease-in-out infinite;
 }
 
-/* Interactive Utility Helpers */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+/* ========================================================================
+   Interactive Utility Helpers
+   ======================================================================== */
+
 button {
   cursor: pointer;
   font-family: inherit;
@@ -166,4 +240,545 @@ a {
 
 input, select, textarea {
   font-family: inherit;
+}
+
+/* ========================================================================
+   Evidence / Research Mode - Presentation Utilities
+   ======================================================================== */
+
+/* Presentation mode: fullscreen evidence view */
+.presentation-mode {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background-color: var(--bg-primary);
+  overflow-y: auto;
+  padding: var(--space-8);
+}
+
+.presentation-mode .presentation-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.presentation-mode .presentation-footer {
+  text-align: center;
+  padding: var(--space-6) 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-8);
+}
+
+/* Figure caption for research screenshots */
+.figure-caption {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: var(--space-4) var(--space-6);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ========================================================================
+   Card System
+   ======================================================================== */
+
+.eoc-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.eoc-card:hover {
+  border-color: var(--border-prominent);
+}
+
+.eoc-card--elevated {
+  background-color: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.eoc-card--prominent {
+  border-color: var(--status-info-border);
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.eoc-card--critical {
+  border-color: var(--status-critical-border);
+  animation: flash-urgent 3s ease-in-out infinite;
+}
+
+/* ========================================================================
+   Decision Drawer
+   ======================================================================== */
+
+.decision-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.decision-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(520px, 90vw);
+  background-color: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  box-shadow: var(--shadow-xl);
+  z-index: 1001;
+  overflow-y: auto;
+  animation: slideInRight 0.25s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.decision-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+  background-color: var(--bg-card);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.decision-drawer-body {
+  flex: 1;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ========================================================================
+   Factor Breakdown Bars
+   ======================================================================== */
+
+.factor-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.factor-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.factor-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.factor-bar-track {
+  height: 8px;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.factor-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.6s ease-out;
+  background: linear-gradient(90deg, var(--status-info), var(--status-success));
+}
+
+/* ========================================================================
+   Route Legend
+   ======================================================================== */
+
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.route-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.route-legend-line {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.route-legend-line--uyirkappan {
+  background-color: var(--route-uyirkappan);
+}
+
+.route-legend-line--baseline {
+  background-color: var(--route-baseline);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--route-baseline) 0,
+    var(--route-baseline) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  background-color: transparent;
+}
+
+.route-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* ========================================================================
+   Evidence Page Specific
+   ======================================================================== */
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: var(--space-5);
+}
+
+.evidence-figure-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.evidence-figure-card:hover {
+  border-color: var(--status-info-border);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.evidence-figure-card .figure-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background-color: var(--status-info-bg);
+  border: 1px solid var(--status-info-border);
+  color: var(--status-info);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ========================================================================
+   Workflow Timeline (E1)
+   ======================================================================== */
+
+.workflow-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: var(--space-6) 0;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-width: 200px;
+  justify-content: center;
+}
+
+.workflow-step--active {
+  border-color: var(--status-success-border);
+  background-color: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.workflow-step--pending {
+  border-color: var(--status-warning-border);
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+
+.workflow-connector {
+  width: 2px;
+  height: 20px;
+  background-color: var(--border-default);
+}
+
+.workflow-connector--active {
+  background-color: var(--status-success);
+}
+
+/* ========================================================================
+   Status Timeline (E4)
+   ======================================================================== */
+
+.status-timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+}
+
+.status-timeline-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.status-timeline-step--completed {
+  background-color: var(--status-success-bg);
+  color: var(--status-success);
+  border: 1px solid var(--status-success-border);
+}
+
+.status-timeline-step--active {
+  background-color: var(--status-info-bg);
+  color: var(--status-info);
+  border: 1px solid var(--status-info-border);
+  animation: pulse-dot 2s ease infinite;
+}
+
+.status-timeline-step--pending {
+  background-color: var(--bg-input);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.status-timeline-arrow {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* ========================================================================
+   Candidate Table
+   ======================================================================== */
+
+.candidate-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-sm);
+}
+
+.candidate-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.candidate-table th:first-child {
+  border-radius: var(--radius-md) 0 0 0;
+}
+
+.candidate-table th:last-child {
+  border-radius: 0 var(--radius-md) 0 0;
+}
+
+.candidate-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.candidate-table tr:last-child td {
+  border-bottom: none;
+}
+
+.candidate-table tr.selected-row {
+  background-color: var(--status-success-bg);
+}
+
+.candidate-table tr.selected-row td {
+  border-bottom-color: var(--status-success-border);
+}
+
+/* ========================================================================
+   Button Variants
+   ======================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn--primary {
+  background-color: var(--status-info);
+  color: var(--text-inverse);
+  border-color: var(--status-info);
+}
+.btn--primary:hover {
+  background-color: #0284c7;
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.btn--secondary {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.btn--secondary:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-prominent);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.btn--ghost:hover {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.btn--danger {
+  background-color: var(--status-critical-bg);
+  color: var(--status-critical);
+  border-color: var(--status-critical-border);
+}
+.btn--danger:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.btn--success {
+  background-color: var(--status-success);
+  color: var(--text-inverse);
+  border-color: var(--status-success);
+}
+.btn--success:hover {
+  background-color: #059669;
+  box-shadow: var(--shadow-glow-green);
+}
+
+.btn--sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.btn--lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-md);
+}
+
+/* WHY button */
+.btn-why {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background-color: var(--status-purple-bg);
+  color: var(--status-purple);
+  border: 1px solid var(--status-purple-border);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.btn-why:hover {
+  background-color: rgba(168, 85, 247, 0.25);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.2);
+}
+
+/* ========================================================================
+   Responsive Utilities
+   ======================================================================== */
+
+@media (max-width: 1024px) {
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .status-timeline {
+    flex-wrap: wrap;
+  }
+
+  .decision-drawer {
+    width: 100vw;
+  }
+
+  .presentation-mode {
+    padding: var(--space-4);
+  }
+}
+
+/* ========================================================================
+   Print / Screenshot Optimization
+   ======================================================================== */
+
+@media print {
+  body {
+    background-color: #0a0e17 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
 }

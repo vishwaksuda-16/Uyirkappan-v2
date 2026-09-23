@@ -18,6 +18,7 @@ abstract class DriverRepository {
   Stream<int> get onEtaUpdated;
   Stream<RouteModel> get onRouteUpdated;
   Stream<Hospital> get onHospitalAssigned;
+  Stream<Map<String, dynamic>> get onDemoAssignmentCreated;
   Stream<AmbulanceLocation> get locationStream;
   AmbulanceLocation? get currentLocation;
 

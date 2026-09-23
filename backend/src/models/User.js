@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ['BYSTANDER', 'DRIVER', 'HOSPITAL_STAFF', 'ADMIN'], default: 'BYSTANDER' },
     hospitalId: String,
+    ambulanceId: String,
   },
   { collection: 'users', timestamps: true }
 );

@@ -152,22 +152,26 @@ class DriverProfileScreen extends StatelessWidget {
               const SizedBox(height: 32),
 
               // Logout Button
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.emergencyRed,
-                  side: const BorderSide(color: AppColors.emergencyRed),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: () async {
-                  await authState.logout();
-                  if (context.mounted) {
-                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                  }
-                },
-                icon: const Icon(Icons.logout, size: 20),
-                label: const Text(
-                  'LOGOUT & END SHIFT',
-                  style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.emergencyRed,
+                    side: const BorderSide(color: AppColors.emergencyRed),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onPressed: () async {
+                    context.read<DriverState>().resetOnLogout();
+                    await authState.logout();
+                    if (context.mounted) {
+                      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                    }
+                  },
+                  icon: const Icon(Icons.logout, size: 20),
+                  label: const Text(
+                    'LOGOUT & END SHIFT',
+                    style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
+                  ),
                 ),
               ),
             ],

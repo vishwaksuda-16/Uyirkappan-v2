@@ -23,6 +23,14 @@ class EmergencyRequest {
   final String? additionalNotes;
   final int fallbackCount;
   final int? currentETA;
+  final List<LocationData>? backendRoute;
+  final List<List<LocationData>>? backendAlternativeRoutes;
+  final String? routeId;
+  final String? routeReason;
+  final String? trafficLevel;
+  final String? roadStatus;
+  final List<String>? blockedSegments;
+  final String? routeConditionSummary;
 
   // Evaluation Timestamps (for response-time analytics: T0 - T6)
   final DateTime? t0UserPressed;
@@ -50,6 +58,14 @@ class EmergencyRequest {
     this.additionalNotes,
     this.fallbackCount = 0,
     this.currentETA,
+    this.backendRoute,
+    this.backendAlternativeRoutes,
+    this.routeId,
+    this.routeReason,
+    this.trafficLevel,
+    this.roadStatus,
+    this.blockedSegments,
+    this.routeConditionSummary,
     this.t0UserPressed,
     this.t1RequestReceived,
     this.t2MatchingCompleted,
@@ -79,6 +95,14 @@ class EmergencyRequest {
     String? additionalNotes,
     int? fallbackCount,
     int? currentETA,
+    List<LocationData>? backendRoute,
+    List<List<LocationData>>? backendAlternativeRoutes,
+    String? routeId,
+    String? routeReason,
+    String? trafficLevel,
+    String? roadStatus,
+    List<String>? blockedSegments,
+    String? routeConditionSummary,
     DateTime? t0UserPressed,
     DateTime? t1RequestReceived,
     DateTime? t2MatchingCompleted,
@@ -104,6 +128,14 @@ class EmergencyRequest {
       additionalNotes: additionalNotes ?? this.additionalNotes,
       fallbackCount: fallbackCount ?? this.fallbackCount,
       currentETA: currentETA ?? this.currentETA,
+      backendRoute: backendRoute ?? this.backendRoute,
+      backendAlternativeRoutes: backendAlternativeRoutes ?? this.backendAlternativeRoutes,
+      routeId: routeId ?? this.routeId,
+      routeReason: routeReason ?? this.routeReason,
+      trafficLevel: trafficLevel ?? this.trafficLevel,
+      roadStatus: roadStatus ?? this.roadStatus,
+      blockedSegments: blockedSegments ?? this.blockedSegments,
+      routeConditionSummary: routeConditionSummary ?? this.routeConditionSummary,
       t0UserPressed: t0UserPressed ?? this.t0UserPressed,
       t1RequestReceived: t1RequestReceived ?? this.t1RequestReceived,
       t2MatchingCompleted: t2MatchingCompleted ?? this.t2MatchingCompleted,

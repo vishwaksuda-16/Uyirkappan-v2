@@ -11,8 +11,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Environment configuration (defaults to live production backend)
-  const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000/api');
-  const socketUrl = String.fromEnvironment('SOCKET_URL', defaultValue: 'http://localhost:4000');
+  const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:5000/api');
+  const socketUrl = String.fromEnvironment('SOCKET_URL', defaultValue: 'http://localhost:5000');
 
   const config = AppConfig(
     apiBaseUrl: apiBaseUrl,

@@ -8,7 +8,7 @@ import '../adaptive/adaptive_datasources.dart';
 import '../auth_datasource.dart';
 
 /// Real REST implementation of AuthDataSource communicating with the backend.
-/// Automatically falls back to offline demo credentials if backend on port 4000 is offline.
+/// Automatically falls back to offline demo credentials if backend on port 5000 is offline.
 class RemoteAuthDataSource implements AuthDataSource {
   final http.Client client;
   final String baseUrl;
@@ -165,6 +165,10 @@ class RemoteAuthDataSource implements AuthDataSource {
         final profile = UserProfile.fromJson(body, token: jwt);
         await _saveProfile(profile);
         return profile;
+      }
+      if (response.statusCode == 401) {
+        await clearSession();
+        return null;
       }
     } catch (_) {}
 

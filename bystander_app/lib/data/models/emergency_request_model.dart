@@ -23,6 +23,14 @@ class EmergencyRequestModel extends EmergencyRequest {
     super.additionalNotes,
     super.fallbackCount,
     super.currentETA,
+    super.backendRoute,
+    super.backendAlternativeRoutes,
+    super.routeId,
+    super.routeReason,
+    super.trafficLevel,
+    super.roadStatus,
+    super.blockedSegments,
+    super.routeConditionSummary,
     super.t0UserPressed,
     super.t1RequestReceived,
     super.t2MatchingCompleted,
@@ -71,6 +79,53 @@ class EmergencyRequestModel extends EmergencyRequest {
         : ((attemptsRaw as num?)?.toInt() ?? json['fallbackCount'] as int? ?? 0);
     final etaVal = (json['currentETA'] as num?)?.toInt() ?? (json['eta'] as num?)?.toInt();
 
+    List<LocationData>? backendRoute;
+    final routeObj = json['route'];
+    if (routeObj is Map<String, dynamic> && routeObj['waypoints'] is List) {
+      final wps = routeObj['waypoints'] as List<dynamic>;
+      backendRoute = wps.map((wp) {
+        if (wp is Map<String, dynamic>) {
+          return LocationData(
+            latitude: (wp['latitude'] as num?)?.toDouble() ?? 0.0,
+            longitude: (wp['longitude'] as num?)?.toDouble() ?? 0.0,
+            timestamp: DateTime.now(),
+          );
+        }
+        return LocationData(latitude: 0.0, longitude: 0.0, timestamp: DateTime.now());
+      }).where((l) => l.latitude != 0.0 && l.longitude != 0.0).toList();
+    }
+
+    List<List<LocationData>>? backendAlternativeRoutes;
+    final altObj = json['alternativeRoutes'];
+    if (altObj is List) {
+      backendAlternativeRoutes = altObj.map((alt) {
+        if (alt is Map<String, dynamic> && alt['waypoints'] is List) {
+          final wps = alt['waypoints'] as List<dynamic>;
+          return wps.map((wp) {
+            if (wp is Map<String, dynamic>) {
+              return LocationData(
+                latitude: (wp['latitude'] as num?)?.toDouble() ?? 0.0,
+                longitude: (wp['longitude'] as num?)?.toDouble() ?? 0.0,
+                timestamp: DateTime.now(),
+              );
+            }
+            return LocationData(latitude: 0.0, longitude: 0.0, timestamp: DateTime.now());
+          }).where((l) => l.latitude != 0.0 && l.longitude != 0.0).toList();
+        }
+        return <LocationData>[];
+      }).where((list) => list.isNotEmpty).toList();
+    }
+
+    final routeId = (json['routeId'] as String?) ?? (routeObj is Map ? routeObj['routeId'] as String? : null);
+    final routeReason = (json['decisionReason'] as String?) ?? (json['selectionReason'] as String?) ?? (routeObj is Map ? routeObj['decisionReason'] as String? : null);
+    final trafficLevel = (json['trafficLevel'] as String?) ?? (routeObj is Map ? routeObj['trafficLevel'] as String? : null);
+    final roadStatus = (json['roadStatus'] as String?) ?? (routeObj is Map ? routeObj['roadStatus'] as String? : null);
+    final routeConditionSummary =
+        (json['routeConditionSummary'] as String?) ?? (routeObj is Map ? routeObj['routeConditionSummary'] as String? : null);
+    final blockedSegments = ((json['blockedSegments'] as List?) ?? (routeObj is Map ? routeObj['blockedSegments'] as List? : null))
+        ?.whereType<String>()
+        .toList();
+
     return EmergencyRequestModel(
       requestId: json['requestId'] as String? ?? json['id'] as String? ?? 'UK-${DateTime.now().millisecondsSinceEpoch}',
       requesterId: json['requesterId'] as String? ?? 'anonymous',
@@ -92,6 +147,14 @@ class EmergencyRequestModel extends EmergencyRequest {
       additionalNotes: json['additionalNotes'] as String?,
       fallbackCount: fallbackAttempts,
       currentETA: etaVal,
+      backendRoute: backendRoute,
+      backendAlternativeRoutes: backendAlternativeRoutes,
+      routeId: routeId,
+      routeReason: routeReason,
+      trafficLevel: trafficLevel,
+      roadStatus: roadStatus,
+      blockedSegments: blockedSegments,
+      routeConditionSummary: routeConditionSummary,
       t0UserPressed: json['t0UserPressed'] != null ? DateTime.parse(json['t0UserPressed'] as String) : null,
       t1RequestReceived: json['t1RequestReceived'] != null ? DateTime.parse(json['t1RequestReceived'] as String) : null,
       t2MatchingCompleted: json['t2MatchingCompleted'] != null ? DateTime.parse(json['t2MatchingCompleted'] as String) : null,
@@ -120,6 +183,14 @@ class EmergencyRequestModel extends EmergencyRequest {
       additionalNotes: entity.additionalNotes,
       fallbackCount: entity.fallbackCount,
       currentETA: entity.currentETA,
+      backendRoute: entity.backendRoute,
+      backendAlternativeRoutes: entity.backendAlternativeRoutes,
+      routeId: entity.routeId,
+      routeReason: entity.routeReason,
+      trafficLevel: entity.trafficLevel,
+      roadStatus: entity.roadStatus,
+      blockedSegments: entity.blockedSegments,
+      routeConditionSummary: entity.routeConditionSummary,
       t0UserPressed: entity.t0UserPressed,
       t1RequestReceived: entity.t1RequestReceived,
       t2MatchingCompleted: entity.t2MatchingCompleted,
@@ -148,6 +219,14 @@ class EmergencyRequestModel extends EmergencyRequest {
     String? additionalNotes,
     int? fallbackCount,
     int? currentETA,
+    List<LocationData>? backendRoute,
+    List<List<LocationData>>? backendAlternativeRoutes,
+    String? routeId,
+    String? routeReason,
+    String? trafficLevel,
+    String? roadStatus,
+    List<String>? blockedSegments,
+    String? routeConditionSummary,
     DateTime? t0UserPressed,
     DateTime? t1RequestReceived,
     DateTime? t2MatchingCompleted,
@@ -173,6 +252,14 @@ class EmergencyRequestModel extends EmergencyRequest {
       additionalNotes: additionalNotes ?? this.additionalNotes,
       fallbackCount: fallbackCount ?? this.fallbackCount,
       currentETA: currentETA ?? this.currentETA,
+      backendRoute: backendRoute ?? this.backendRoute,
+      backendAlternativeRoutes: backendAlternativeRoutes ?? this.backendAlternativeRoutes,
+      routeId: routeId ?? this.routeId,
+      routeReason: routeReason ?? this.routeReason,
+      trafficLevel: trafficLevel ?? this.trafficLevel,
+      roadStatus: roadStatus ?? this.roadStatus,
+      blockedSegments: blockedSegments ?? this.blockedSegments,
+      routeConditionSummary: routeConditionSummary ?? this.routeConditionSummary,
       t0UserPressed: t0UserPressed ?? this.t0UserPressed,
       t1RequestReceived: t1RequestReceived ?? this.t1RequestReceived,
       t2MatchingCompleted: t2MatchingCompleted ?? this.t2MatchingCompleted,
@@ -206,6 +293,10 @@ class EmergencyRequestModel extends EmergencyRequest {
       'fallbackCount': fallbackCount,
       'attempts': fallbackCount,
       if (currentETA != null) 'currentETA': currentETA,
+      if (trafficLevel != null) 'trafficLevel': trafficLevel,
+      if (roadStatus != null) 'roadStatus': roadStatus,
+      if (blockedSegments != null && blockedSegments!.isNotEmpty) 'blockedSegments': blockedSegments,
+      if (routeConditionSummary != null) 'routeConditionSummary': routeConditionSummary,
       if (t0UserPressed != null) 't0UserPressed': t0UserPressed!.toIso8601String(),
       if (t1RequestReceived != null) 't1RequestReceived': t1RequestReceived!.toIso8601String(),
       if (t2MatchingCompleted != null) 't2MatchingCompleted': t2MatchingCompleted!.toIso8601String(),

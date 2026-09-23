@@ -49,6 +49,10 @@ class SimulatedSocketService implements SocketService {
       _hospitalAssignedController.stream;
 
   @override
+  Stream<Map<String, dynamic>> get onDemoAssignmentCreated =>
+      const Stream.empty();
+
+  @override
   Future<void> connect() async {
     _status = ConnectionStatus.connecting;
     _connectionController.add(_status);

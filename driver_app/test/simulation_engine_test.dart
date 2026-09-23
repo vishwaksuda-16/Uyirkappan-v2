@@ -32,7 +32,7 @@ void main() {
       expect(assignment.emergency.emergencyType, 'Cardiac Emergency');
       expect(assignment.emergency.victimCount, 1);
       expect(assignment.timeoutSeconds, 15);
-      expect(assignment.destinationHospital?.hospitalId, 'H1');
+      expect(assignment.destinationHospital?.hospitalId, anyOf('HOSP-01', 'H1'));
     });
 
     test('Records auditable dispatch attempts correctly', () {

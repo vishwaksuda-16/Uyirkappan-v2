@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import '../../models/emergency_request_model.dart';
+import '../../../domain/entities/emergency_type.dart';
+import '../../../domain/entities/location_data.dart';
 import '../../../domain/entities/nearby_poi.dart';
 import '../../../domain/entities/request_status.dart';
 import '../emergency_request_datasource.dart';
@@ -86,6 +88,20 @@ class MockEmergencyRequestDataSource implements EmergencyRequestDataSource {
   }
 
   @override
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    final hospital = NearbyEmergencyService.findNearestHospital(
+      emergencyLocation.latitude,
+      emergencyLocation.longitude,
+    );
+    return hospital.id;
+  }
+
+  @override
   Future<EmergencyRequestModel> cancelEmergencyRequest(String requestId, {String? reason}) async {
     await Future.delayed(const Duration(milliseconds: 250));
     final existing = await getEmergencyRequest(requestId);
@@ -163,7 +179,7 @@ class MockEmergencyRequestDataSource implements EmergencyRequestDataSource {
       final incidentLat = req.emergencyLocation.latitude;
       final incidentLng = req.emergencyLocation.longitude;
       final nearestAmb = NearbyEmergencyService.findNearestAmbulance(incidentLat, incidentLng);
-      final nearestHosp = NearbyEmergencyService.findNearestHospital(incidentLat, incidentLng);
+      final nearestHosp = NearbyEmergencyService.findHospitalByIdOrName('HOSP-01');
 
       final now = DateTime.now();
       final updated = req.copyWith(
@@ -292,7 +308,7 @@ class MockEmergencyRequestDataSource implements EmergencyRequestDataSource {
       final incidentLat = req.emergencyLocation.latitude;
       final incidentLng = req.emergencyLocation.longitude;
       final allAmbs = NearbyEmergencyService.getAllAmbulances(userLat: incidentLat, userLng: incidentLng);
-      final nearestHosp = NearbyEmergencyService.findNearestHospital(incidentLat, incidentLng);
+      final nearestHosp = NearbyEmergencyService.findHospitalByIdOrName('HOSP-01');
       final amb1 = allAmbs.isNotEmpty ? allAmbs.first : NearbyEmergencyService.fixedAmbulances.first;
 
       final updated = req.copyWith(
@@ -442,7 +458,7 @@ class MockEmergencyRequestDataSource implements EmergencyRequestDataSource {
       final incidentLat = req.emergencyLocation.latitude;
       final incidentLng = req.emergencyLocation.longitude;
       final allAmbs = NearbyEmergencyService.getAllAmbulances(userLat: incidentLat, userLng: incidentLng);
-      final nearestHosp = NearbyEmergencyService.findNearestHospital(incidentLat, incidentLng);
+      final nearestHosp = NearbyEmergencyService.findHospitalByIdOrName('HOSP-01');
       final amb1 = allAmbs.isNotEmpty ? allAmbs.first : NearbyEmergencyService.fixedAmbulances.first;
 
       final updated = req.copyWith(

@@ -1,0 +1,51 @@
+caseId,callType,callerDistrict,callerTaluk,critical,triage,vehicleType,emergencyType,hospitalType,area,hour,baseToSceneKm,sceneToHospitalKm,baseToSceneSeconds,sceneToHospitalSeconds,responseSeconds,benchmarkSeconds,metBenchmark
+2025110104332,EMERGENCY,Nilgiris,Udagamandalam,Yes,YELLOW(Urgent),BLS,Pregnancy related,Government,Tribal,8,13,36.0,1320,2395,82,1050,true
+2025110181960,EMERGENCY,Pudukottai,Aranthangi,Yes,RED(Very Urgent),ALS,Unconscious,Government,Urban,6,1,1.0,120,88,1549,870,false
+2025110013389,IFT,Thiruvannamalai,CHENGAM,No,,NLS,Neonatal(upto 1 month),Government,Rural,17,23,0.0,1346,,724,930,true
+2025110083863,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Acute Abdomen,Government,Urban,3,8,13.0,600,1446,630,870,true
+2025110794026,IFT,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Pregnancy related,Government,Urban,11,9,5.0,764,559,809,870,true
+2025110542351,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Pregnancy related,Government,Urban,15,3,10.0,258,1175,307,870,true
+2025110161559,EMERGENCY,Madurai,Madurai South,No,,BLS,Unconscious,Government,Urban,18,3,,245,,266,870,true
+2025110407816,EMERGENCY,Madurai,Madurai South,Yes,RED(Very Urgent),BLS,Respiratory,Government,Urban,18,3,12.0,338,1211,424,870,true
+2025110184959,EMERGENCY,Madurai,Madurai South,Yes,RED(Resuscitation),BLS,Accidental Poisoning,Government,Urban,23,1,9.0,105,944,163,870,true
+2025110310341,EMERGENCY,Madurai,Thiruparankundram,No,YELLOW(Less Urgent),BLS,Trauma (non Vehicular),Government,Urban,13,6,2.0,491,96,518,870,true
+2025110316475,EMERGENCY,Madurai,Vadipatti,No,,BLS,Trauma (Vehicular),Government,Urban,15,1,,110,,178,870,true
+2025110255341,EMERGENCY,Madurai,Madurai South,No,,BLS,Epilepsy,Government,Urban,16,6,,390,,415,870,true
+2025110928327,IFT,Madurai,Thiruparankundram,No,,BLS,Fevers / Infections,Government,Urban,18,5,,595,,638,870,true
+2025110648350,EMERGENCY,Madurai,Madurai South,No,YELLOW(Less Urgent),BLS,Trauma (non Vehicular),Government,Urban,20,14,4.0,838,367,891,870,false
+2025110305641,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Cardiac/Cardio Vascular,Government,Urban,1,2,11.0,180,849,198,870,true
+2025110395376,IFT,Madurai,Thiruparankundram,Yes,YELLOW(Urgent),BLS,Diabetes,Government,Urban,12,19,13.0,1619,1299,1660,870,false
+2025110724238,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Diabetes,Government,Urban,14,9,2.0,854,149,916,870,false
+2025110849696,EMERGENCY,Madurai,Madurai South,No,,BLS,Trauma (Vehicular),Government,Urban,17,6,,548,,578,870,true
+2025110532871,IFT,Madurai,Thirumangalam,Yes,RED(Very Urgent),BLS,Animal Attack,Government,Urban,18,11,21.0,918,1684,931,870,false
+2025110012269,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Stroke/CerebroVascular Accidents,Government,Urban,20,15,22.0,1584,2424,1641,870,false
+2025110166978,EMERGENCY,Madurai,Thiruparankundram,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,22,1,6.0,91,577,141,870,true
+2025110480184,EMERGENCY,Madurai,Madurai South,No,,BLS,Unconscious,Government,Urban,0,7,,720,,740,870,true
+2025110514627,IFT,Madurai,Thiruparankundram,No,,BLS,Pregnancy related,Government,Urban,0,1,,120,,160,870,true
+2025110048281,IFT,Madurai,Thiruparankundram,No,,BLS,Cardiac/Cardio Vascular,Government,Urban,2,1,,60,,85,870,true
+2025110489325,IFT,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Pregnancy related,Government,Urban,6,2,8.0,120,900,167,870,true
+2025110288095,EMERGENCY,Madurai,Madurai South,Yes,RED(Very Urgent),BLS,Cardiac/Cardio Vascular,Government,Urban,10,7,13.0,840,1200,858,870,true
+2025110701543,IFT,Madurai,Vadipatti,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,12,23,30.0,1306,3300,1336,870,false
+2025110039117,IFT,Madurai,Vadipatti,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,12,23,30.0,1306,3300,1336,870,false
+2025110182278,IFT,Madurai,Vadipatti,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,12,23,30.0,1306,3300,1336,870,false
+2025110248963,EMERGENCY,Madurai,Madurai South,No,,BLS,Epilepsy,Government,Urban,16,2,,180,,217,870,true
+2025110834657,IFT,Madurai,Madurai North,Yes,YELLOW(Urgent),BLS,Acute Abdomen,Government,Urban,16,7,4.0,577,420,611,870,true
+2025110871331,EMERGENCY,Madurai,Madurai West,No,,BLS,Diabetes,Government,Urban,19,14,,1560,,1576,870,false
+2025110509839,EMERGENCY,Madurai,Madurai South,Yes,RED(Very Urgent),BLS,Respiratory,Government,Urban,21,6,3.0,507,300,577,870,true
+2025110301031,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,9,4,11.0,300,338,354,870,true
+2025110051834,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Accidental Poisoning,Government,Urban,13,7,5.0,794,441,851,870,true
+2025110738299,EMERGENCY,Madurai,Madurai South,No,,BLS,Unconscious,Government,Urban,15,7,,833,,848,870,true
+2025110737631,EMERGENCY,Madurai,Madurai South,No,,BLS,Unconscious,Government,Urban,17,1,,68,,136,870,true
+2025110165667,IFT,Madurai,Thiruparankundram,Yes,RED(Very Urgent),BLS,Acute Abdomen,Government,Urban,11,4,12.0,310,1383,335,870,true
+2025110010651,EMERGENCY,Madurai,Madurai South,No,,BLS,Trauma (Vehicular),Government,Urban,12,6,,614,,630,870,true
+2025110333872,EMERGENCY,Madurai,Madurai South,No,,BLS,Respiratory,Government,Urban,15,6,,504,,570,870,true
+2025110624731,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Trauma (non Vehicular),Government,Urban,18,2,11.0,193,1217,270,870,true
+2025110781080,EMERGENCY,Madurai,Madurai South,No,,BLS,Fevers / Infections,Government,Urban,21,4,,443,,518,870,true
+2025110132677,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Trauma (non Vehicular),Government,Urban,22,5,4.0,592,451,669,870,true
+2025110360260,IFT,Madurai,Thirumangalam,Yes,RED(Very Urgent),BLS,Pregnancy related,Government,Urban,12,13,21.0,1068,1517,1120,870,false
+2025110647468,EMERGENCY,Madurai,Madurai South,No,,BLS,Suicide attempt,Government,Urban,16,3,,316,,375,870,true
+2025110723430,IFT,Madurai,Thiruparankundram,Yes,RED(Very Urgent),BLS,Others,Government,Urban,10,13,22.0,1267,1902,1319,870,false
+2025110980500,IFT,Madurai,Thiruparankundram,Yes,YELLOW(Urgent),BLS,Unconscious,Government,Urban,13,2,11.0,171,1012,221,870,true
+2025110978820,EMERGENCY,Madurai,Madurai South,No,,BLS,Epilepsy,Government,Urban,19,3,,356,,413,870,true
+2025110812191,IFT,Madurai,Madurai North,Yes,YELLOW(Urgent),BLS,Pregnancy related,Government,Urban,20,9,8.0,950,908,1016,870,false
+2025110361939,EMERGENCY,Madurai,Madurai South,Yes,YELLOW(Urgent),BLS,Trauma (Vehicular),Government,Urban,0,10,16.0,915,1162,933,870,false

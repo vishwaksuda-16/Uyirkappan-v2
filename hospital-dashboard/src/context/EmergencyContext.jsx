@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { AuthContext } from './authContextDef';
 import { EmergencyContext } from './emergencyContextDef';
 import hospitalApi from '../services/hospitalApi';
@@ -36,6 +36,7 @@ export function EmergencyProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const processedEventIds = useRef(new Set());
 
   const addNotification = useCallback((type, title, message, details = null) => {
     const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -96,8 +97,13 @@ export function EmergencyProvider({ children }) {
     const handleNewEmergency = (data) => {
       if (!data || !data.requestId) return;
 
-      // Ensure hospital destination matches if specified
-      if (data.hospitalId && data.hospitalId !== user.hospitalId && data.hospitalId !== 'HOSP-01' && data.hospitalId !== 'H01') {
+      if (data.eventId) {
+        if (processedEventIds.current.has(data.eventId)) return;
+        processedEventIds.current.add(data.eventId);
+      }
+
+      // Ensure only the selected destination hospital receives the inbound notification
+      if (data.hospitalId && data.hospitalId !== user.hospitalId) {
         return;
       }
 
@@ -126,20 +132,53 @@ export function EmergencyProvider({ children }) {
     const handleAmbulanceAssigned = (data) => {
       if (!data || !data.requestId) return;
 
-      setEmergencies((prev) =>
-        prev.map((item) => {
-          if (item.requestId === data.requestId) {
-            return {
-              ...item,
-              ambulanceId: data.ambulanceId || item.ambulanceId,
-              driverName: data.driverName || item.driverName,
-              status: data.status || 'DRIVER_ACCEPTED',
-              updatedAt: new Date().toISOString(),
-            };
-          }
-          return item;
-        })
-      );
+      if (data.eventId) {
+        if (processedEventIds.current.has(data.eventId)) return;
+        processedEventIds.current.add(data.eventId);
+      }
+
+      // Ensure only the assigned hospital processes this incoming dispatch
+      if (data.hospitalId && data.hospitalId !== user.hospitalId) {
+        return;
+      }
+
+      setEmergencies((prev) => {
+        const exists = prev.some((item) => item.requestId === data.requestId);
+        if (exists) {
+          return prev.map((item) => {
+            if (item.requestId === data.requestId) {
+              return {
+                ...item,
+                ambulanceId: data.ambulanceId || item.ambulanceId,
+                driverName: data.driverName || item.driverName,
+                status: data.status || 'DRIVER_ACCEPTED',
+                route: data.route || item.route,
+                alternativeRoutes: data.alternativeRoutes || item.alternativeRoutes,
+                candidateRoutes: data.candidateRoutes || item.candidateRoutes,
+                decisionReason: data.decisionReason || item.decisionReason,
+                updatedAt: new Date().toISOString(),
+              };
+            }
+            return item;
+          });
+        }
+
+        // Newly matched emergency arriving at this hospital
+        return [{
+          requestId: data.requestId,
+          ambulanceId: data.ambulanceId,
+          driverName: data.driverName,
+          status: data.status || 'DRIVER_ACCEPTED',
+          eta: data.estimatedETA || data.eta,
+          route: data.route,
+          alternativeRoutes: data.alternativeRoutes,
+          candidateRoutes: data.candidateRoutes,
+          decisionReason: data.decisionReason,
+          hospitalId: data.hospitalId || user.hospitalId,
+          createdAt: data.timestamp || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }, ...prev];
+      });
 
       socketService.joinEmergencyRoom(data.requestId);
 
@@ -204,14 +243,7 @@ export function EmergencyProvider({ children }) {
           return item;
         })
       );
-
-      // Highlight ETA recalculation
-      addNotification(
-        'info',
-        '⏱️ ETA RECALCULATED',
-        `Case ${requestId}: Updated ETA is ${eta} min (${trafficCondition || 'traffic updated'}).`,
-        payload
-      );
+      // State updated reactively without toast spam
     };
 
     // 5. STATUS_UPDATED
@@ -365,7 +397,36 @@ export function EmergencyProvider({ children }) {
       );
     };
 
-    // Register listeners for all 9 checklist Socket.IO events
+    // 10. ROUTE_UPDATED (Journey 1 or Journey 2 dynamic route update)
+    const handleRouteUpdated = (payload) => {
+      if (!payload || !payload.requestId) return;
+      setEmergencies((prev) =>
+        prev.map((item) => {
+          if (item.requestId === payload.requestId) {
+            return {
+              ...item,
+              route: payload.route || item.route,
+              alternativeRoutes: payload.alternativeRoutes || item.alternativeRoutes,
+              candidateRoutes: payload.candidateRoutes || item.candidateRoutes,
+              eta: payload.etaMinutes ?? payload.eta ?? item.eta,
+              distanceKm: payload.distanceKm || item.distanceKm,
+              decisionReason: payload.selectionReason || item.decisionReason,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return item;
+        })
+      );
+
+      addNotification(
+        'info',
+        '🗺️ ROUTE UPDATED',
+        `Route updated for case ${payload.requestId} (${payload.phase || 'IN_TRANSIT'}). ETA: ${payload.etaMinutes || '--'} min.`,
+        payload
+      );
+    };
+
+    // Register listeners for all checklist Socket.IO events
     socketService.on(SOCKET_EVENTS.EMERGENCY_CREATED, handleNewEmergency);
     socketService.on(SOCKET_EVENTS.NEW_INCOMING_EMERGENCY, handleNewEmergency);
     socketService.on(SOCKET_EVENTS.AMBULANCE_ASSIGNED, handleAmbulanceAssigned);
@@ -373,6 +434,7 @@ export function EmergencyProvider({ children }) {
     socketService.on(SOCKET_EVENTS.LOCATION_UPDATED, handleLocationUpdate);
     socketService.on(SOCKET_EVENTS.ETA_UPDATED, handleEtaUpdate);
     socketService.on(SOCKET_EVENTS.STATUS_UPDATED, handleStatusUpdate);
+    socketService.on(SOCKET_EVENTS.ROUTE_UPDATED, handleRouteUpdated);
     socketService.on(SOCKET_EVENTS.PATIENT_ONBOARD, (data) =>
       handleStatusUpdate({ ...data, status: 'PATIENT_ONBOARD' })
     );
@@ -393,6 +455,7 @@ export function EmergencyProvider({ children }) {
       socketService.off(SOCKET_EVENTS.LOCATION_UPDATED, handleLocationUpdate);
       socketService.off(SOCKET_EVENTS.ETA_UPDATED, handleEtaUpdate);
       socketService.off(SOCKET_EVENTS.STATUS_UPDATED, handleStatusUpdate);
+      socketService.off(SOCKET_EVENTS.ROUTE_UPDATED, handleRouteUpdated);
       socketService.off(SOCKET_EVENTS.FALLBACK_STARTED, handleFallbackStarted);
       socketService.off(SOCKET_EVENTS.AMBULANCE_REASSIGNED, handleFallbackUpdate);
       socketService.off(SOCKET_EVENTS.FALLBACK_ASSIGNMENT_UPDATED, handleFallbackUpdate);
@@ -419,7 +482,7 @@ export function EmergencyProvider({ children }) {
   }, []);
 
   const triggerIncomingDemo = useCallback(() => {
-    const newCase = socketService.triggerIncomingDemo(hospital?.hospitalId || user?.hospitalId || 'HOSP-01');
+    const newCase = socketService.triggerIncomingDemo(hospital?.hospitalId || user?.hospitalId || 'H001');
     return newCase;
   }, [hospital?.hospitalId, user?.hospitalId]);
 

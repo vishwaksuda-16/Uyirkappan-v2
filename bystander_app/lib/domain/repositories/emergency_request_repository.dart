@@ -1,9 +1,18 @@
 import '../entities/emergency_request.dart';
+import '../entities/emergency_type.dart';
+import '../entities/location_data.dart';
 import '../entities/request_status.dart';
 
 /// Abstract repository interface for Emergency Request operations.
 /// Completely isolates UI from backend or mock implementations.
 abstract class EmergencyRequestRepository {
+  /// Recommends the best hospital based on a given pickup location.
+  Future<String?> recommendHospitalDestination({
+    required EmergencyType emergencyType,
+    required int victimCount,
+    required LocationData emergencyLocation,
+  });
+
   /// Submits a new emergency request.
   Future<EmergencyRequest> submitEmergencyRequest(EmergencyRequest request);
 

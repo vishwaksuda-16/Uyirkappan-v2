@@ -6,6 +6,9 @@ import '../../models/route_model.dart';
 import '../../models/state_enums.dart';
 
 abstract class ApiService {
+  /// Set JWT authentication token for API requests
+  void setAuthToken(String? token);
+
   /// POST /api/auth/login
   Future<Driver> login(String identifier, String password);
 

@@ -58,8 +58,8 @@ export function AuthProvider({ children }) {
         email: rawUser.email || email,
         role: rawUser.role || 'HOSPITAL_STAFF',
         department: rawUser.department || 'Emergency Medicine',
-        hospitalId: rawUser.hospitalId || hospitalId || 'HOSP-01',
-        hospitalName: rawUser.hospitalName || 'Apollo Trauma & Emergency Center',
+        hospitalId: rawUser.hospitalId || hospitalId || 'H001',
+        hospitalName: rawUser.hospitalName || 'Hospital Facility',
       };
 
       // Verify Role: Must be HOSPITAL_STAFF
@@ -87,6 +87,43 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const switchHospital = useCallback(async (newHospitalId) => {
+    if (!newHospitalId || newHospitalId === user?.hospitalId) return;
+
+    try {
+      // 1. Unsubscribe from old hospital room
+      if (user?.hospitalId) {
+        socketService.unsubscribeHospital(user.hospitalId);
+      }
+
+      // 2. Fetch new hospital details from API
+      let newHospital = null;
+      try {
+        const res = await hospitalApi.getHospital(newHospitalId);
+        newHospital = res?.hospital || null;
+      } catch (e) {
+        if (import.meta.env?.DEV) console.warn('Could not fetch new hospital profile:', e);
+      }
+
+      // 3. Update user object
+      const updatedUser = {
+        ...(user || {}),
+        hospitalId: newHospitalId,
+        hospitalName: newHospital?.name || `Hospital ${newHospitalId}`,
+        hospital: newHospital,
+      };
+
+      setUser(updatedUser);
+      setHospital(newHospital);
+      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(updatedUser));
+
+      // 4. Subscribe to new hospital room
+      socketService.subscribeHospital(newHospitalId);
+    } catch (err) {
+      if (import.meta.env?.DEV) console.error('Failed to switch hospital:', err);
+    }
+  }, [user]);
+
   const logout = useCallback(() => {
     if (user?.hospitalId) {
       socketService.unsubscribeHospital(user.hospitalId);
@@ -109,6 +146,7 @@ export function AuthProvider({ children }) {
     isLoading,
     login,
     logout,
+    switchHospital,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

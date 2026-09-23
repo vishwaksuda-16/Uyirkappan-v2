@@ -15,6 +15,8 @@ class PlatformOpenFreeMapView extends StatefulWidget {
   final double? heading;
   final String? ambulanceId;
   final List<LocationData>? routeWaypoints;
+  final List<List<LocationData>>? alternativeRoutes;
+  final List<String>? alternativeLabels;
   final List<NearbyHospital>? nearbyHospitals;
   final List<NearbyAmbulance>? nearbyAmbulances;
   final OpenFreeMapStyle style;
@@ -30,6 +32,8 @@ class PlatformOpenFreeMapView extends StatefulWidget {
     this.heading,
     this.ambulanceId,
     this.routeWaypoints,
+    this.alternativeRoutes,
+    this.alternativeLabels,
     this.nearbyHospitals,
     this.nearbyAmbulances,
     this.style = OpenFreeMapStyle.bright,
@@ -245,10 +249,20 @@ class _PlatformOpenFreeMapViewState extends State<PlatformOpenFreeMapView> {
       _callJs('clearRoute', [_mapId]);
       return;
     }
-    final coords = widget.routeWaypoints!.map((pt) => [pt.longitude, pt.latitude]).toList();
-    _callJs('drawRoute', [
+    final primaryCoords = widget.routeWaypoints!.map((pt) => [pt.longitude, pt.latitude]).toList();
+    final altCoords = widget.alternativeRoutes
+            ?.map((route) => route.map((pt) => [pt.longitude, pt.latitude]).toList())
+            .toList() ??
+        [];
+    final altLabels = widget.alternativeLabels ?? [];
+
+    _callJs('drawMultiRoutes', [
       _mapId,
-      js.JsObject.jsify(coords),
+      js.JsObject.jsify({
+        'primaryRoute': primaryCoords,
+        'alternativeRoutes': altCoords,
+        'alternativeLabels': altLabels,
+      }),
     ]);
   }
 
@@ -317,7 +331,8 @@ class _PlatformOpenFreeMapViewState extends State<PlatformOpenFreeMapView> {
       }
     }
 
-    if (oldWidget.routeWaypoints != widget.routeWaypoints) {
+    if (oldWidget.routeWaypoints != widget.routeWaypoints ||
+        oldWidget.alternativeRoutes != widget.alternativeRoutes) {
       _updateRoute();
     }
 

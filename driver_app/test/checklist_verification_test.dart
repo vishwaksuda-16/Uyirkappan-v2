@@ -20,8 +20,8 @@ import 'package:driver_app/state/state_machine.dart';
 void main() {
   group('Team Lead Module 2 Checklist Automated Verification Suite', () {
     const config = AppConfig(
-      apiBaseUrl: 'http://localhost:4000/api',
-      socketUrl: 'http://localhost:4000',
+      apiBaseUrl: 'http://localhost:5000/api',
+      socketUrl: 'http://localhost:5000',
       assignmentTimeoutSeconds: 15,
     );
 
@@ -61,7 +61,7 @@ void main() {
       final Driver driver = await api.login('driver1@uyirkappan.demo', 'password123');
 
       expect(requestedMethod, 'POST');
-      expect(requestedUrl, 'http://localhost:4000/api/auth/login');
+      expect(requestedUrl, 'http://localhost:5000/api/auth/login');
       expect(sentBody['email'], 'driver1@uyirkappan.demo');
       expect(sentBody['password'], 'password123');
       expect(driver.token, 'jwt_mock_token_driver_12345');
@@ -107,7 +107,7 @@ void main() {
       final amb = await api.updateAmbulanceStatus('AMB-001', AmbulanceAvailability.available);
 
       expect(patchMethod, 'PATCH');
-      expect(patchUrl, 'http://localhost:4000/api/ambulances/AMB-001/status');
+      expect(patchUrl, 'http://localhost:5000/api/ambulances/AMB-001/status');
       expect(patchBody['availability'], 'AVAILABLE');
       expect(amb.availability, AmbulanceAvailability.available);
     });
@@ -118,7 +118,7 @@ void main() {
     test('Section 3: GET /api/driver/assignment parses all checklist payload attributes', () async {
       final mockClient = http_testing.MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.toString(), 'http://localhost:4000/api/driver/assignment');
+        expect(request.url.toString(), 'http://localhost:5000/api/driver/assignment');
 
         return http.Response(
           jsonEncode({
@@ -161,7 +161,7 @@ void main() {
     test('Section 4: POST /api/assignments/{id}/accept transitions to ACCEPTED / DRIVER_ACCEPTED', () async {
       final mockClient = http_testing.MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.toString(), 'http://localhost:4000/api/assignments/ASN-1001/accept');
+        expect(request.url.toString(), 'http://localhost:5000/api/assignments/ASN-1001/accept');
 
         return http.Response(
           jsonEncode({
@@ -193,7 +193,7 @@ void main() {
       late String rejectBody;
       final mockClient = http_testing.MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.toString(), 'http://localhost:4000/api/assignments/ASN-1001/reject');
+        expect(request.url.toString(), 'http://localhost:5000/api/assignments/ASN-1001/reject');
         rejectBody = request.body;
 
         return http.Response(
@@ -304,7 +304,7 @@ void main() {
       late Map<String, dynamic> locBody;
       final mockClient = http_testing.MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.toString(), 'http://localhost:4000/api/ambulances/AMB-001/location');
+        expect(request.url.toString(), 'http://localhost:5000/api/ambulances/AMB-001/location');
         locBody = jsonDecode(request.body) as Map<String, dynamic>;
 
         return http.Response(jsonEncode({'success': true}), 200);

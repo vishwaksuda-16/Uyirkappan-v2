@@ -772,15 +772,15 @@ npm run dev
 
 Backend:
 
-http://localhost:4000
+http://localhost:5000
 
 Health Check:
 
-http://localhost:4000/api/health
+http://localhost:5000/api/health
 
 Swagger:
 
-http://localhost:4000/api-docs
+http://localhost:5000/api-docs
 2. Start Bystander App
 cd bystander_app
 flutter pub get
@@ -980,7 +980,7 @@ docs/
 
 Swagger API documentation is available while the backend is running at:
 
-http://localhost:4000/api-docs
+http://localhost:5000/api-docs
 ⚠️ Prototype & Simulation Scope
 
 UyirKappan is developed as an academic software prototype.

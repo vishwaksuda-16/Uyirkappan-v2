@@ -25,10 +25,24 @@ export function useHospitalResources(hospitalId) {
     setError(null);
     try {
       const data = await hospitalApi.getResources(hospitalId);
-      setResources((prev) => ({
-        ...prev,
-        ...data,
-      }));
+      if (data) {
+        const totalGen = data.totalGeneralBeds ?? data.emergencyBedsTotal ?? 25;
+        const totalIcu = data.totalIcuBeds ?? data.icuBedsTotal ?? 8;
+        const totalVent = data.totalVentilators ?? data.ventilatorsTotal ?? 5;
+        const genBeds = Math.min(Math.max(0, Number(data.generalBeds ?? 0)), totalGen);
+        const icuBeds = Math.min(Math.max(0, Number(data.icuBeds ?? 0)), totalIcu);
+        const vents = Math.min(Math.max(0, Number(data.ventilators ?? 0)), totalVent);
+
+        setResources({
+          generalBeds: genBeds,
+          totalGeneralBeds: totalGen,
+          icuBeds: icuBeds,
+          totalIcuBeds: totalIcu,
+          ventilators: vents,
+          totalVentilators: totalVent,
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        });
+      }
     } catch (err) {
       if (import.meta.env?.DEV) console.error('Failed to load hospital resources:', err);
       setError(err.message || 'Unable to load resource counts.');
@@ -49,20 +63,26 @@ export function useHospitalResources(hospitalId) {
       if (!payload) return;
       if (
         !payload.hospitalId ||
-        payload.hospitalId === hospitalId ||
-        payload.hospitalId === 'HOSP-01' ||
-        payload.hospitalId === 'H01'
+        payload.hospitalId === hospitalId
       ) {
-        setResources((prev) => ({
-          ...prev,
-          generalBeds: payload.generalBeds !== undefined ? Number(payload.generalBeds) : prev.generalBeds,
-          icuBeds: payload.icuBeds !== undefined ? Number(payload.icuBeds) : prev.icuBeds,
-          ventilators: payload.ventilators !== undefined ? Number(payload.ventilators) : prev.ventilators,
-          totalGeneralBeds: payload.totalGeneralBeds !== undefined ? Number(payload.totalGeneralBeds) : prev.totalGeneralBeds,
-          totalIcuBeds: payload.totalIcuBeds !== undefined ? Number(payload.totalIcuBeds) : prev.totalIcuBeds,
-          totalVentilators: payload.totalVentilators !== undefined ? Number(payload.totalVentilators) : prev.totalVentilators,
-          updatedAt: payload.updatedAt || new Date().toISOString(),
-        }));
+        setResources((prev) => {
+          const totalGen = payload.totalGeneralBeds ?? payload.emergencyBedsTotal ?? prev.totalGeneralBeds;
+          const totalIcu = payload.totalIcuBeds ?? payload.icuBedsTotal ?? prev.totalIcuBeds;
+          const totalVent = payload.totalVentilators ?? payload.ventilatorsTotal ?? prev.totalVentilators;
+          const gen = payload.generalBeds !== undefined ? Math.min(Math.max(0, Number(payload.generalBeds)), totalGen) : prev.generalBeds;
+          const icu = payload.icuBeds !== undefined ? Math.min(Math.max(0, Number(payload.icuBeds)), totalIcu) : prev.icuBeds;
+          const vent = payload.ventilators !== undefined ? Math.min(Math.max(0, Number(payload.ventilators)), totalVent) : prev.ventilators;
+          return {
+            ...prev,
+            generalBeds: gen,
+            icuBeds: icu,
+            ventilators: vent,
+            totalGeneralBeds: totalGen,
+            totalIcuBeds: totalIcu,
+            totalVentilators: totalVent,
+            updatedAt: payload.updatedAt || new Date().toISOString(),
+          };
+        });
       }
     };
 
@@ -117,7 +137,7 @@ export function useHospitalResources(hospitalId) {
         }));
 
         setSuccessMessage('Hospital resource availability updated successfully.');
-        setTimeout(() => setSuccessMessage(null), 4000);
+        setTimeout(() => setSuccessMessage(null), 5000);
         return { success: true };
       } catch (err) {
         // Rollback on failure

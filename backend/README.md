@@ -17,7 +17,7 @@ plugged in later without rewriting controllers or routes.
 ```bash
 npm install
 cp .env.example .env   # optional; sensible defaults are built in
-npm run dev            # starts server on http://localhost:4000
+npm run dev            # starts server on http://localhost:5000
 
 npm run simulate          # driver-1 rejects, driver-2 accepts, live tracking, ETA, completion
 npm run simulate-ambulance -- ambulance=AMB-01 mode=accept

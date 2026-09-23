@@ -1,7 +1,24 @@
 import apiClient from './api.js';
 import { API_ENDPOINTS } from '../constants/apiEndpoints.js';
-
 export const hospitalApi = {
+  /**
+   * Fetch all 30 authoritative hospitals
+   * GET /api/hospitals
+   */
+  async getHospitals() {
+    const data = await apiClient.get('/hospitals');
+    return Array.isArray(data) ? data : (data?.hospitals || data?.data || []);
+  },
+
+  /**
+   * Fetch authoritative dataset status counts (all 10 dataset entities)
+   * GET /api/data-status
+   */
+  async getDataStatus() {
+    const data = await apiClient.get('/data-status');
+    return data;
+  },
+
   /**
    * Fetch hospital profile and operational details
    * GET /api/hospitals/:id
@@ -53,6 +70,15 @@ export const hospitalApi = {
   async getEmergencyHistory(hospitalId, params = {}) {
     const data = await apiClient.get(API_ENDPOINTS.HOSPITAL_HISTORY(hospitalId), { params });
     return Array.isArray(data) ? data : (data?.history || data?.data || []);
+  },
+
+  /**
+   * Trigger demo system reset
+   * POST /api/demo/reset
+   */
+  async resetDemo() {
+    const data = await apiClient.post('/demo/reset');
+    return data;
   },
 };
 

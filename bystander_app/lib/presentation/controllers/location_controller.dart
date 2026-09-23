@@ -16,23 +16,9 @@ enum LocationFetchStatus {
 /// Controller responsible for acquiring GPS coordinates, managing permissions,
 /// and maintaining manual location overrides.
 class LocationController extends ChangeNotifier {
-  LocationFetchStatus _status = LocationFetchStatus.success;
-  LocationData? _deviceLocation = LocationData(
-    latitude: AppConstants.defaultLatitude,
-    longitude: AppConstants.defaultLongitude,
-    accuracy: AppConstants.defaultAccuracy,
-    timestamp: DateTime.now(),
-    readableAddress: 'Anna Salai, Central Chennai',
-    isManualOverride: false,
-  );
-  LocationData? _emergencyLocation = LocationData(
-    latitude: AppConstants.defaultLatitude,
-    longitude: AppConstants.defaultLongitude,
-    accuracy: AppConstants.defaultAccuracy,
-    timestamp: DateTime.now(),
-    readableAddress: 'Anna Salai, Central Chennai',
-    isManualOverride: false,
-  );
+  LocationFetchStatus _status = LocationFetchStatus.loading;
+  LocationData? _deviceLocation;
+  LocationData? _emergencyLocation;
   String? _errorMessage;
 
   LocationFetchStatus get status => _status;
@@ -47,7 +33,7 @@ class LocationController extends ChangeNotifier {
         timestamp: DateTime.now(),
       );
   String? get errorMessage => _errorMessage;
-  bool get isLocationReady => emergencyLocation != null;
+  bool get isLocationReady => _emergencyLocation != null || _deviceLocation != null;
   bool get isManualOverride => _emergencyLocation?.isManualOverride ?? false;
 
   LocationController() {
@@ -165,12 +151,30 @@ class LocationController extends ChangeNotifier {
     return null;
   }
 
+  /// Sets demo baseline location (Anna Salai, Central Chennai)
+  void useDemoLocation() {
+    final demoLoc = LocationData(
+      latitude: AppConstants.defaultLatitude,
+      longitude: AppConstants.defaultLongitude,
+      accuracy: AppConstants.defaultAccuracy,
+      timestamp: DateTime.now(),
+      readableAddress: 'Anna Salai, Central Chennai (Demo)',
+      isManualOverride: false,
+    );
+    _deviceLocation = demoLoc;
+    _emergencyLocation = demoLoc;
+    _status = LocationFetchStatus.success;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   void _useFallbackLocation() {
     _deviceLocation ??= LocationData(
       latitude: AppConstants.defaultLatitude,
       longitude: AppConstants.defaultLongitude,
       accuracy: AppConstants.defaultAccuracy,
       timestamp: DateTime.now(),
+      readableAddress: 'Anna Salai, Central Chennai',
       isManualOverride: false,
     );
     _emergencyLocation ??= _deviceLocation;

@@ -25,11 +25,11 @@ class RouteWaypoint {
 
   factory RouteWaypoint.fromJson(Map<String, dynamic> json) {
     return RouteWaypoint(
-      nodeId: json['nodeId'] as String,
-      nodeName: json['nodeName'] as String,
+      nodeId: (json['nodeId'] as String?) ?? (json['id'] as String?) ?? 'WP',
+      nodeName: (json['nodeName'] as String?) ?? (json['name'] as String?) ?? 'Waypoint',
       location: GeoPoint(
-        (json['latitude'] as num).toDouble(),
-        (json['longitude'] as num).toDouble(),
+        (json['latitude'] as num?)?.toDouble() ?? 0.0,
+        (json['longitude'] as num?)?.toDouble() ?? 0.0,
       ),
       roadName: json['roadName'] as String?,
     );
@@ -98,13 +98,22 @@ class RouteModel {
   }
 
   factory RouteModel.fromJson(Map<String, dynamic> json) {
-    return RouteModel(
-      routeId: json['routeId'] as String,
-      waypoints: (json['waypoints'] as List<dynamic>)
+    List<RouteWaypoint> waypointsList = [];
+    if (json['waypoints'] is List) {
+      waypointsList = (json['waypoints'] as List<dynamic>)
           .map((w) => RouteWaypoint.fromJson(w as Map<String, dynamic>))
-          .toList(),
-      totalDistanceKm: (json['totalDistanceKm'] as num).toDouble(),
-      estimatedMinutes: (json['estimatedMinutes'] as num).toInt(),
+          .toList();
+    }
+    return RouteModel(
+      routeId: (json['routeId'] as String?) ?? 'ROUTE-01',
+      waypoints: waypointsList,
+      totalDistanceKm: (json['totalDistanceKm'] as num?)?.toDouble() ??
+          (json['distanceKm'] as num?)?.toDouble() ??
+          0.0,
+      estimatedMinutes: (json['estimatedMinutes'] as num?)?.toInt() ??
+          (json['travelTimeMinutes'] as num?)?.toInt() ??
+          (json['etaMinutes'] as num?)?.toInt() ??
+          0,
       currentWaypointIndex: (json['currentWaypointIndex'] as num?)?.toInt() ?? 0,
       isRerouted: json['isRerouted'] as bool? ?? false,
       alertMessage: json['alertMessage'] as String?,

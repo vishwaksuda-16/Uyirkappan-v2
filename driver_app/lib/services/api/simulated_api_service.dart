@@ -13,6 +13,11 @@ import 'api_service.dart';
 /// Simulated API Service for offline unit test suites and integration verification.
 /// Disconnected from production runtime.
 class SimulatedApiService implements ApiService {
+  @override
+  void setAuthToken(String? token) {
+    // No-op in offline simulation
+  }
+
   // In-memory simulation state
   final Map<String, Driver> _drivers = {};
   final Map<String, Ambulance> _ambulances = {};

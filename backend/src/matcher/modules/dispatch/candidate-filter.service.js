@@ -4,12 +4,17 @@ exports.CandidateFilterService = void 0;
 class CandidateFilterService {
     filterCandidates(ambulances, emergencyLocation, searchRadiusKm, excludedAmbulanceIds = new Set()) {
         return ambulances.filter((ambulance) => {
+            if (!ambulance || !ambulance.currentLocation || !emergencyLocation) {
+                return false;
+            }
+
+            const availabilityStatus = ambulance.availabilityStatus || ambulance.status || 'OFFLINE';
             // 1. Ambulance must be available
-            if (ambulance.availabilityStatus !== "AVAILABLE") {
+            if (availabilityStatus !== "AVAILABLE") {
                 return false;
             }
             // 2. Ambulance must not have failed for this request
-            if (excludedAmbulanceIds.has(ambulance.ambulanceId)) {
+            if (excludedAmbulanceIds.has(ambulance.ambulanceId || ambulance.id)) {
                 return false;
             }
             // 3. Ambulance must be within configured search radius

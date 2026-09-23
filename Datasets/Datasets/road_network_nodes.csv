@@ -1,0 +1,71 @@
+node_id,name,type,lat,lon
+H001,Rajiv Gandhi Government General Hospital,Hospital,13.081,80.2774
+H002,Government Stanley Medical College Hospital,Hospital,13.1068,80.2865
+H003,Government Kilpauk Medical College Hospital,Hospital,13.0783,80.2426
+H004,Government Royapettah Hospital,Hospital,13.0545,80.2635
+H005,Government Omandurar Medical College Hospital,Hospital,13.0697,80.2747
+H006,Institute of Child Health and Hospital for Children,Hospital,13.0735,80.2607
+H007,Apollo Hospitals Greams Road,Hospital,13.0444,80.2496
+H008,Fortis Malar Hospital,Hospital,13.0067,80.2565
+H009,MIOT International,Hospital,13.0215,80.1789
+H010,Sri Ramachandra Medical Centre,Hospital,13.0387,80.1407
+H011,Madras Medical Mission,Hospital,13.0857,80.1867
+H012,Sundaram Medical Foundation,Hospital,13.085,80.2101
+H013,SIMS Hospital,Hospital,13.0522,80.211
+H014,Vijaya Hospital,Hospital,13.0506,80.212
+H015,Kauvery Hospital,Hospital,13.0527,80.2124
+H016,Apollo Speciality Hospital OMR,Hospital,12.9597,80.2461
+H017,Gleneagles HealthCity Chennai,Hospital,12.9054,80.2286
+H018,Chettinad Hospital and Research Institute,Hospital,12.797,80.2205
+H019,Dr. Kamakshi Memorial Hospital,Hospital,12.9498,80.2104
+H020,Prashanth Super Speciality Hospital,Hospital,12.9799,80.2207
+H021,Hindu Mission Hospital,Hospital,12.9246,80.1132
+H022,Government Hospital Tambaram,Hospital,12.9241,80.1275
+H023,ESIC Medical College and Hospital,Hospital,13.038,80.2044
+H024,Billroth Hospitals,Hospital,13.0789,80.224
+H025,Apollo Hospitals Tondiarpet,Hospital,13.1271,80.289
+H026,CSI Rainy Multispeciality Hospital,Hospital,13.1133,80.286
+H027,MGM Healthcare,Hospital,13.0718,80.2218
+H028,Kauvery Hospital Alwarpet,Hospital,13.0337,80.2572
+H029,Adyar Cancer Institute,Hospital,13.0061,80.2508
+H030,Government Hospital of Thoracic Medicine,Hospital,12.9431,80.1285
+A001,Ambulance Base - Ennore,Ambulance Base,13.2146,80.3203
+A002,Ambulance Base - Tiruvottiyur,Ambulance Base,13.16,80.301
+A003,Ambulance Base - Manali,Ambulance Base,13.1667,80.258
+A004,Ambulance Base - Madhavaram,Ambulance Base,13.1482,80.2314
+A005,Ambulance Base - Red Hills/Puzhal,Ambulance Base,13.158,80.2035
+A006,Ambulance Base - Tondiarpet,Ambulance Base,13.127,80.2895
+A007,Ambulance Base - Royapuram,Ambulance Base,13.113,80.294
+A008,Ambulance Base - Perambur,Ambulance Base,13.118,80.2337
+A009,Ambulance Base - Basin Bridge,Ambulance Base,13.1019,80.2717
+A010,Ambulance Base - Park Town/Central,Ambulance Base,13.0813,80.2769
+A011,Ambulance Base - Egmore,Ambulance Base,13.0732,80.2609
+A012,Ambulance Base - Kilpauk,Ambulance Base,13.078,80.243
+A013,Ambulance Base - Anna Nagar,Ambulance Base,13.085,80.21
+A014,Ambulance Base - Mogappair,Ambulance Base,13.0837,80.175
+A015,Ambulance Base - Ambattur,Ambulance Base,13.1143,80.1548
+A016,Ambulance Base - Avadi,Ambulance Base,13.1067,80.097
+A017,Ambulance Base - Koyambedu,Ambulance Base,13.0694,80.1948
+A018,Ambulance Base - Vadapalani,Ambulance Base,13.0524,80.212
+A019,Ambulance Base - Nungambakkam,Ambulance Base,13.0604,80.242
+A020,Ambulance Base - Anna Salai/Teynampet,Ambulance Base,13.0418,80.2505
+A021,Ambulance Base - Royapettah,Ambulance Base,13.0543,80.264
+A022,Ambulance Base - Mylapore,Ambulance Base,13.0339,80.2697
+A023,Ambulance Base - T. Nagar,Ambulance Base,13.0418,80.2341
+A024,Ambulance Base - Ashok Nagar/KK Nagar,Ambulance Base,13.0385,80.204
+A025,Ambulance Base - Porur,Ambulance Base,13.0359,80.1588
+A026,Ambulance Base - Poonamallee,Ambulance Base,13.0473,80.0945
+A027,Ambulance Base - Guindy,Ambulance Base,13.0067,80.2206
+A028,Ambulance Base - Manapakkam,Ambulance Base,13.021,80.179
+A029,Ambulance Base - Adyar,Ambulance Base,13.0065,80.2568
+A030,Ambulance Base - Thiruvanmiyur,Ambulance Base,12.985,80.2594
+A031,Ambulance Base - Velachery,Ambulance Base,12.9815,80.218
+A032,Ambulance Base - Pallikaranai,Ambulance Base,12.9495,80.21
+A033,Ambulance Base - Perungudi,Ambulance Base,12.96,80.2455
+A034,Ambulance Base - Sholinganallur,Ambulance Base,12.901,80.2279
+A035,Ambulance Base - Medavakkam,Ambulance Base,12.918,80.192
+A036,Ambulance Base - Tambaram,Ambulance Base,12.9249,80.1
+A037,Ambulance Base - Pallavaram,Ambulance Base,12.9675,80.1491
+A038,Ambulance Base - Chromepet,Ambulance Base,12.9516,80.1462
+A039,Ambulance Base - ECR Neelankarai,Ambulance Base,12.9495,80.2598
+A040,Ambulance Base - Kelambakkam,Ambulance Base,12.787,80.22

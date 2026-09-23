@@ -27,7 +27,14 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = widget.assignment.timeoutSeconds;
+    int remaining = widget.assignment.timeoutSeconds;
+    if (widget.assignment.expiresAt != null) {
+      final diff = widget.assignment.expiresAt!.difference(DateTime.now()).inSeconds;
+      if (diff > 0) {
+        remaining = diff;
+      }
+    }
+    _remainingSeconds = remaining;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -56,43 +63,93 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
   }
 
   Future<void> _handleTimeout() async {
+    if (_isResponding) return;
     setState(() => _isResponding = true);
     final driverState = context.read<DriverState>();
     await driverState.timeoutAssignment();
-    await Future.delayed(const Duration(milliseconds: 1400));
+    await Future.delayed(const Duration(milliseconds: 600));
     if (mounted) {
       Navigator.pop(context);
     }
   }
 
   Future<void> _handleAccept() async {
+    if (_isResponding) return;
     _timer?.cancel();
     setState(() => _isResponding = true);
 
     final driverState = context.read<DriverState>();
     final navState = context.read<NavigationState>();
 
-    final accepted = await driverState.acceptAssignment();
-    if (!mounted) return;
-    if (accepted) {
-      // Transition directly to En Route to Patient
-      await driverState.advanceToEnRouteToPatient();
-      navState.startJourneyToPatient(widget.assignment);
-
+    try {
+      final accepted = await driverState.acceptAssignment();
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/navigation');
+      if (accepted) {
+        // Transition directly to En Route to Patient
+        await driverState.advanceToEnRouteToPatient();
+        navState.startJourneyToPatient(widget.assignment);
+
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/navigation');
+        return;
+      } else {
+        final errorMsg = driverState.errorMessage ?? 'Assignment could not be accepted.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ $errorMsg'),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Error accepting assignment: $e'),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isResponding = false);
+      }
     }
   }
 
   Future<void> _handleReject() async {
+    if (_isResponding) return;
     _timer?.cancel();
     setState(() => _isResponding = true);
 
     final driverState = context.read<DriverState>();
-    await driverState.rejectAssignment(reason: 'Driver declined manually');
-
-    if (mounted) {
-      Navigator.pop(context);
+    try {
+      await driverState.rejectAssignment(reason: 'Driver declined manually');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Assignment declined. Re-routing dispatch to next available unit.'),
+            backgroundColor: AppColors.warningOrange,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Error rejecting assignment: $e'),
+            backgroundColor: AppColors.emergencyRed,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isResponding = false);
+      }
     }
   }
 
@@ -107,8 +164,9 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
   Widget build(BuildContext context) {
     final assignment = widget.assignment;
     final emergency = assignment.emergency;
-    final totalTimeout = assignment.timeoutSeconds;
-    final progressFraction = (_remainingSeconds / totalTimeout).clamp(0.0, 1.0);
+    final totalTimeout = assignment.timeoutSeconds > 0 ? assignment.timeoutSeconds : 60;
+    final maxTimeout = _remainingSeconds > totalTimeout ? _remainingSeconds : totalTimeout;
+    final progressFraction = (_remainingSeconds / (maxTimeout > 0 ? maxTimeout : 1)).clamp(0.0, 1.0);
 
     return PopScope(
       canPop: false, // Prevent dismissing without Accept or Reject
@@ -321,6 +379,8 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
                       flex: 1,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           foregroundColor: AppColors.emergencyRed,
                           side: const BorderSide(color: AppColors.emergencyRed, width: 1.5),
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -328,13 +388,21 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
                         onPressed: (_isResponding || _remainingSeconds == 0)
                             ? null
                             : _handleReject,
-                        child: const Text(
-                          'REJECT',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
+                        child: _isResponding
+                            ? const Text(
+                                'DECLINING...',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                              )
+                            : const Text(
+                                'REJECT',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -343,6 +411,8 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
                       flex: 2,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           backgroundColor: AppColors.statusAvailable,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -351,13 +421,26 @@ class _AssignmentReceivedScreenState extends State<AssignmentReceivedScreen>
                             ? null
                             : _handleAccept,
                         child: _isResponding && _remainingSeconds > 0
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2.5,
-                                ),
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'PROCESSING...',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ],
                               )
                             : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,

@@ -1,6 +1,6 @@
 # UyirKappan Backend API
 
-Base URL: `http://localhost:4000/api`
+Base URL: `http://localhost:5000/api`
 
 All protected endpoints require `Authorization: Bearer <token>`.
 

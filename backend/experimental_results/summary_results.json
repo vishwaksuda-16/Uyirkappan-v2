@@ -1,0 +1,144 @@
+{
+  "evaluationTitle": "Phase 1 Experimental Evaluation — Central Chennai Emergency Dispatch",
+  "datasetCounts": {
+    "emergencyRequests": 3000,
+    "ambulances": 131,
+    "drivers": 131,
+    "hospitals": 30,
+    "ambulanceBases": 40,
+    "roadNodes": 70,
+    "roadSegments": 182,
+    "trafficRecords": 48,
+    "gpsRecords": 10372
+  },
+  "ambulanceMatching": {
+    "baselineMeanEta": 7.8,
+    "ukMeanEta": 5.95,
+    "baselineMedianEta": 6,
+    "ukMedianEta": 5,
+    "baselineStdDev": 6.44,
+    "ukStdDev": 3.65,
+    "minEta": 1,
+    "maxEta": 35,
+    "etaImprovementPct": 23.7,
+    "baselineMeanDistanceKm": 2.88,
+    "ukMeanDistanceKm": 2.15
+  },
+  "routing": {
+    "baselineMeanTime": 6.04,
+    "ukMeanTime": 5.95,
+    "baselineMeanDist": 2.15,
+    "ukMeanDist": 2.15,
+    "etaImprovementPct": 1.5
+  },
+  "hospitalSelection": {
+    "totalEvaluated": 3000,
+    "topSelectedHospitals": [
+      {
+        "id": "H011",
+        "name": "Madras Medical Mission",
+        "count": 255,
+        "percentage": 8.5
+      },
+      {
+        "id": "H019",
+        "name": "Dr. Kamakshi Memorial Hospital",
+        "count": 245,
+        "percentage": 8.2
+      },
+      {
+        "id": "H025",
+        "name": "Apollo Hospitals Tondiarpet",
+        "count": 203,
+        "percentage": 6.8
+      },
+      {
+        "id": "H009",
+        "name": "MIOT International",
+        "count": 181,
+        "percentage": 6
+      },
+      {
+        "id": "H007",
+        "name": "Apollo Hospitals Greams Road",
+        "count": 172,
+        "percentage": 5.7
+      },
+      {
+        "id": "H001",
+        "name": "Rajiv Gandhi Government General Hospital",
+        "count": 121,
+        "percentage": 4
+      },
+      {
+        "id": "H021",
+        "name": "Hindu Mission Hospital",
+        "count": 114,
+        "percentage": 3.8
+      },
+      {
+        "id": "H006",
+        "name": "Institute of Child Health and Hospital for Children",
+        "count": 111,
+        "percentage": 3.7
+      }
+    ],
+    "meanDistanceKm": 2.66,
+    "meanEtaMin": 5.1
+  },
+  "cascadingFallback": {
+    "totalEmergencies": 3000,
+    "successfulFirstAssignments": 2311,
+    "fallbackTriggeredAssignments": 689,
+    "fallbackRecoveredAssignments": 689,
+    "failedAssignments": 0,
+    "averageAttempts": 1.3,
+    "fallbackRecoveryRatePct": 100,
+    "overallSuccessRatePct": 100
+  },
+  "statisticalComparison": {
+    "baselineMean": 7.8,
+    "uyirKappanMean": 5.95,
+    "meanDifference": 1.85,
+    "medianDifference": 1,
+    "percentageImprovement": 23.7,
+    "tStatistic": 23.257,
+    "degreesOfFreedom": 2999,
+    "pValue": "< 0.0001",
+    "isStatisticallySignificant": true,
+    "testMethod": "Two-tailed Paired Student t-test"
+  },
+  "trafficImpact": {
+    "NORMAL": {
+      "baselineEta": 7.83,
+      "ukEta": 5.99,
+      "improvementPct": 23.5
+    },
+    "MODERATE": {
+      "baselineEta": 7.67,
+      "ukEta": 5.9,
+      "improvementPct": 23
+    },
+    "HEAVY": {
+      "baselineEta": 7.94,
+      "ukEta": 5.86,
+      "improvementPct": 26.2
+    }
+  },
+  "etaDistribution": {
+    "baseline": {
+      "0-5 min": 1304,
+      "5-10 min": 1142,
+      "10-15 min": 297,
+      "15+ min": 257
+    },
+    "uyirkappan": {
+      "0-5 min": 1537,
+      "5-10 min": 1243,
+      "10-15 min": 177,
+      "15+ min": 43
+    }
+  },
+  "generatedAt": "2026-09-12T06:25:35.248Z",
+  "executionDurationSeconds": 13.2
+}

@@ -1,5 +1,6 @@
 const { io } = require('socket.io-client');
 const { request, BASE } = require('./client');
+const { generateRoadPathCoordinates } = require('./roadRouteSimulator');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -32,28 +33,45 @@ function waitForEvent(socket, event, predicate, timeoutMs = 45000) {
   });
 }
 
-async function moveTo(token, ambulanceId, dest) {
+async function moveTo(token, ambulanceId, dest, requestId) {
   const amb = (await request('GET', `/ambulances/${ambulanceId}`, null, token)).data.ambulance;
   const from = amb.currentLocation;
-  const steps = 6;
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
+
+  let path = [];
+  try {
+    const res = generateRoadPathCoordinates(from, dest);
+    path = res.pathCoordinates;
+  } catch (_) {
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      path.push({
+        latitude: from.latitude + (dest.latitude - from.latitude) * t,
+        longitude: from.longitude + (dest.longitude - from.longitude) * t,
+        speed: 35,
+        heading: 90,
+      });
+    }
+  }
+
+  for (const pt of path) {
     await request('POST', `/ambulances/${ambulanceId}/location`, {
-      latitude: from.latitude + (dest.latitude - from.latitude) * t,
-      longitude: from.longitude + (dest.longitude - from.longitude) * t,
-      speed: 30,
-      heading: 90,
+      latitude: pt.latitude,
+      longitude: pt.longitude,
+      speed: pt.speed || 35,
+      heading: pt.heading || 0,
+      requestId,
     }, token);
-    await sleep(1200);
+    await sleep(400);
   }
 }
 
 async function main() {
   console.log('\n=== UyirKappan End-to-End Simulation ===\n');
 
-  const bystander = await login('bystander@uyirkappan.com', 'password123');
-  const driver1 = await login('driver1@uyirkappan.com', 'password123');
-  const driver2 = await login('driver2@uyirkappan.com', 'password123');
+  const bystander = await login('bystander@uyirkappan.demo', 'password123');
+  const driver1 = await login('driver1@uyirkappan.demo', 'password123');
+  const driver2 = await login('driver2@uyirkappan.demo', 'password123');
 
   const bs = await connectSocket(bystander.token);
   const d1 = await connectSocket(driver1.token);

@@ -5,11 +5,11 @@ class ApiConstants {
 
   /// Default Backend Base URL for Node.js / Express backend.
   static const String defaultBaseUrl =
-      String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:4000');
+      String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:5000');
 
   /// Socket.IO server URL for real-time tracking and dispatch events.
   static const String defaultSocketUrl =
-      String.fromEnvironment('SOCKET_URL', defaultValue: 'http://localhost:4000');
+      String.fromEnvironment('SOCKET_URL', defaultValue: 'http://localhost:5000');
   static const String socketUrl = defaultSocketUrl;
   static const String bearerPrefix = 'Bearer ';
 
@@ -20,6 +20,8 @@ class ApiConstants {
 
   // 2. Emergency Lifecycle Endpoints
   static const String emergency = '/api/emergency';
+  static const String hospitals = '/api/hospitals';
+  static const String recommendHospital = '/api/hospitals/recommend';
   static String emergencyById(String id) => '/api/emergency/$id';
   static String emergencyTracking(String id) => '/api/emergency/$id/tracking';
   static String cancelEmergency(String id) => '/api/emergency/$id/cancel';

@@ -544,85 +544,238 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
     }
   };
 
-  window.uyirkappanMaps.drawRoute = function (containerId, coordinates) {
-    getState(containerId).route = coordinates;
+  window.uyirkappanMaps.clearRoute = function (containerId) {
+    getState(containerId).route = null;
+    getState(containerId).lastFittedDestKey = null;
+    const map = maps[containerId];
+
+    // Clear route badge markers
+    if (markers[containerId] && markers[containerId].routeBadges) {
+      markers[containerId].routeBadges.forEach(function (m) {
+        try { m.remove(); } catch (e) {}
+      });
+      markers[containerId].routeBadges = [];
+    }
+
+    if (!map || !map.isStyleLoaded()) return;
+
+    // Clear primary route layers
+    try {
+      if (map.getLayer('uk-route-layer')) map.removeLayer('uk-route-layer');
+      if (map.getLayer('uk-route-casing')) map.removeLayer('uk-route-casing');
+      if (map.getSource('uk-route-source')) map.removeSource('uk-route-source');
+    } catch (e) {}
+
+    // Clear alternative route layers (up to 4)
+    for (let i = 0; i < 4; i++) {
+      try {
+        if (map.getLayer('uk-alt-route-layer-' + i)) map.removeLayer('uk-alt-route-layer-' + i);
+        if (map.getLayer('uk-alt-route-casing-' + i)) map.removeLayer('uk-alt-route-casing-' + i);
+        if (map.getSource('uk-alt-route-source-' + i)) map.removeSource('uk-alt-route-source-' + i);
+      } catch (err) {}
+    }
+  };
+
+  window.uyirkappanMaps.drawMultiRoutes = function (containerId, routePayload) {
+    if (!routePayload) {
+      window.uyirkappanMaps.clearRoute(containerId);
+      return;
+    }
+
+    // Normalization: allow array of coords or full MultiRoute object
+    let primaryCoords = [];
+    let altRoutes = [];
+    let altLabels = [];
+
+    if (Array.isArray(routePayload)) {
+      primaryCoords = routePayload;
+    } else if (typeof routePayload === 'object') {
+      primaryCoords = routePayload.primaryRoute || [];
+      altRoutes = routePayload.alternativeRoutes || [];
+      altLabels = routePayload.alternativeLabels || [];
+    }
+
+    getState(containerId).route = primaryCoords;
     const map = maps[containerId];
     if (!map) {
-      pendingRoutes[containerId] = coordinates;
+      pendingRoutes[containerId] = routePayload;
       return;
     }
 
     if (!map.isStyleLoaded()) {
       map.once('style.load', function () {
-        window.uyirkappanMaps.drawRoute(containerId, coordinates);
+        window.uyirkappanMaps.drawMultiRoutes(containerId, routePayload);
       });
       return;
     }
 
-    const sourceId = 'uk-route-source';
-    const casingLayerId = 'uk-route-casing';
-    const layerId = 'uk-route-layer';
-
-    const geojson = {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: coordinates
-      }
-    };
-
-    if (map.getSource(sourceId)) {
-      map.getSource(sourceId).setData(geojson);
-    } else {
-      map.addSource(sourceId, {
-        type: 'geojson',
-        data: geojson
+    // Initialize badge marker store
+    if (!markers[containerId]) markers[containerId] = {};
+    if (markers[containerId].routeBadges) {
+      markers[containerId].routeBadges.forEach(function (m) {
+        try { m.remove(); } catch (e) {}
       });
+    }
+    markers[containerId].routeBadges = [];
 
-      // Google Maps style: Deep navy/blue casing underlayer for sharp contrast
-      map.addLayer({
-        id: casingLayerId,
-        type: 'line',
-        source: sourceId,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': '#174EA6', // Google dark blue casing
-          'line-width': 8,
-          'line-opacity': 0.95
+    // 1. RENDER ALTERNATIVE CANDIDATE ROUTES (Muted Slate, Below Primary)
+    if (Array.isArray(altRoutes)) {
+      altRoutes.forEach(function (altCoords, idx) {
+        if (!altCoords || altCoords.length < 2) return;
+
+        const altSourceId = 'uk-alt-route-source-' + idx;
+        const altCasingId = 'uk-alt-route-casing-' + idx;
+        const altLayerId = 'uk-alt-route-layer-' + idx;
+
+        const altGeojson = {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: altCoords
+          }
+        };
+
+        if (map.getSource(altSourceId)) {
+          map.getSource(altSourceId).setData(altGeojson);
+        } else {
+          map.addSource(altSourceId, {
+            type: 'geojson',
+            data: altGeojson
+          });
+
+          map.addLayer({
+            id: altCasingId,
+            type: 'line',
+            source: altSourceId,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#1E293B',
+              'line-width': 6.5,
+              'line-opacity': 0.75
+            }
+          });
+
+          map.addLayer({
+            id: altLayerId,
+            type: 'line',
+            source: altSourceId,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#64748B', // Muted slate for alternative corridor
+              'line-width': 4.5,
+              'line-opacity': 0.85,
+              'line-dasharray': [2, 1.5]
+            }
+          });
         }
-      });
 
-      // Google Maps style: Vibrant primary navigation blue line (#4285F4)
-      map.addLayer({
-        id: layerId,
-        type: 'line',
-        source: sourceId,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': '#4285F4', // Google Maps navigation blue
-          'line-width': 5.5,
-          'line-opacity': 1.0
+        // Add badge at midpoint of alternative route
+        if (altCoords.length > 2) {
+          const midIdx = Math.floor(altCoords.length / 2);
+          const midPt = altCoords[midIdx];
+          const label = (altLabels && altLabels[idx]) ? altLabels[idx] : ('Alt ' + (idx + 1) + ' (+3 min)');
+
+          const badgeEl = document.createElement('div');
+          badgeEl.className = 'uk-route-alt-tag';
+          badgeEl.innerHTML = '<span>' + label + '</span>';
+
+          const badgeMarker = new maplibregl.Marker({ element: badgeEl, anchor: 'center' })
+            .setLngLat(midPt)
+            .addTo(map);
+
+          markers[containerId].routeBadges.push(badgeMarker);
         }
       });
     }
 
-    // Auto-focus & frame the route ONCE per destination leg (does NOT bounce/zoom as ambulance moves)
-    if (coordinates && coordinates.length > 1) {
+    // 2. RENDER PRIMARY SELECTED ROUTE (Vibrant Google Navigation Blue, On Top)
+    if (primaryCoords && primaryCoords.length >= 2) {
+      const sourceId = 'uk-route-source';
+      const casingLayerId = 'uk-route-casing';
+      const layerId = 'uk-route-layer';
+
+      const geojson = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: primaryCoords
+        }
+      };
+
+      if (map.getSource(sourceId)) {
+        map.getSource(sourceId).setData(geojson);
+      } else {
+        map.addSource(sourceId, {
+          type: 'geojson',
+          data: geojson
+        });
+
+        // Google Maps style: Deep navy/blue casing underlayer for sharp contrast
+        map.addLayer({
+          id: casingLayerId,
+          type: 'line',
+          source: sourceId,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#174EA6', // Google dark blue casing
+            'line-width': 8.5,
+            'line-opacity': 0.98
+          }
+        });
+
+        // Google Maps style: Vibrant primary navigation blue line (#4285F4)
+        map.addLayer({
+          id: layerId,
+          type: 'line',
+          source: sourceId,
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#4285F4', // Google Maps navigation blue
+            'line-width': 6.0,
+            'line-opacity': 1.0
+          }
+        });
+      }
+
+      // Add "BEST ROUTE (Selected • Fastest)" badge at midpoint of primary route
+      if (primaryCoords.length > 2) {
+        const midIdx = Math.floor(primaryCoords.length * 0.45);
+        const midPt = primaryCoords[midIdx];
+
+        const bestBadgeEl = document.createElement('div');
+        bestBadgeEl.className = 'uk-route-best-tag';
+        bestBadgeEl.innerHTML = '<span class="star">★</span><span>BEST ROUTE (Selected)</span>';
+
+        const bestMarker = new maplibregl.Marker({ element: bestBadgeEl, anchor: 'center' })
+          .setLngLat(midPt)
+          .addTo(map);
+
+        markers[containerId].routeBadges.push(bestMarker);
+      }
+
+      // Auto-focus & frame the route ONCE per destination leg (does NOT bounce/zoom as ambulance moves)
       try {
-        const endPt = coordinates[coordinates.length - 1];
+        const endPt = primaryCoords[primaryCoords.length - 1];
         const destKey = endPt[0].toFixed(3) + '_' + endPt[1].toFixed(3);
         if (getState(containerId).lastFittedDestKey !== destKey) {
           getState(containerId).lastFittedDestKey = destKey;
           const bounds = new maplibregl.LngLatBounds();
           let validCount = 0;
-          coordinates.forEach(function (pt) {
+          primaryCoords.forEach(function (pt) {
             if (pt && typeof pt[0] === 'number' && typeof pt[1] === 'number' &&
                 pt[0] >= 75 && pt[0] <= 85 && pt[1] >= 8 && pt[1] <= 18) {
               bounds.extend(pt);
@@ -642,16 +795,23 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
     }
   };
 
-  window.uyirkappanMaps.clearRoute = function (containerId) {
-    getState(containerId).route = null;
-    getState(containerId).lastFittedDestKey = null;
-    const map = maps[containerId];
-    if (!map || !map.isStyleLoaded()) return;
-    try {
-      if (map.getLayer('uk-route-layer')) map.removeLayer('uk-route-layer');
-      if (map.getLayer('uk-route-casing')) map.removeLayer('uk-route-casing');
-      if (map.getSource('uk-route-source')) map.removeSource('uk-route-source');
-    } catch (e) {}
+  // Backwards-compatible alias for existing callers
+  window.uyirkappanMaps.drawRoute = function (containerId, coordinates, altRoutes, altLabels) {
+    if (altRoutes && Array.isArray(altRoutes) && altRoutes.length > 0) {
+      window.uyirkappanMaps.drawMultiRoutes(containerId, {
+        primaryRoute: coordinates,
+        alternativeRoutes: altRoutes,
+        alternativeLabels: altLabels || []
+      });
+    } else if (coordinates && typeof coordinates === 'object' && coordinates.primaryRoute) {
+      window.uyirkappanMaps.drawMultiRoutes(containerId, coordinates);
+    } else {
+      window.uyirkappanMaps.drawMultiRoutes(containerId, {
+        primaryRoute: coordinates || [],
+        alternativeRoutes: [],
+        alternativeLabels: []
+      });
+    }
   };
 
   window.uyirkappanMaps.setSearchRadar = function (containerId, enabled) {

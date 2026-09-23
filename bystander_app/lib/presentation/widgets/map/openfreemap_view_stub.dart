@@ -15,6 +15,8 @@ class PlatformOpenFreeMapView extends StatefulWidget {
   final double? heading;
   final String? ambulanceId;
   final List<LocationData>? routeWaypoints;
+  final List<List<LocationData>>? alternativeRoutes;
+  final List<String>? alternativeLabels;
   final List<NearbyHospital>? nearbyHospitals;
   final List<NearbyAmbulance>? nearbyAmbulances;
   final OpenFreeMapStyle style;
@@ -30,6 +32,8 @@ class PlatformOpenFreeMapView extends StatefulWidget {
     this.heading,
     this.ambulanceId,
     this.routeWaypoints,
+    this.alternativeRoutes,
+    this.alternativeLabels,
     this.nearbyHospitals,
     this.nearbyAmbulances,
     this.style = OpenFreeMapStyle.bright,

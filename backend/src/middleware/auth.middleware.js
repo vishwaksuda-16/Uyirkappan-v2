@@ -28,7 +28,11 @@ module.exports = function authMiddleware(store) {
       next();
     } catch (err) {
       console.log('[AUTH] Token verification failed:', err.message);
-      return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+      return res.status(401).json({
+        success: false,
+        code: err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID',
+        message: err.name === 'TokenExpiredError' ? 'Token expired; please log in again' : 'Invalid token',
+      });
     }
   };
 };

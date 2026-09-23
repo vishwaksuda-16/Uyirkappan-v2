@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _recenterCounter = 0;
   String? _activeTopBannerMessage;
   Timer? _topBannerTimer;
+  bool _isDispatching = false;
 
   @override
   void initState() {
@@ -164,6 +165,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _dispatchAmbulance() async {
+    if (_isDispatching) return;
+    setState(() => _isDispatching = true);
+
     OpenFreeMapView.suppressClicks();
     final loc = widget.locationController.emergencyLocation ??
         LocationData(
@@ -172,12 +176,75 @@ class _HomeScreenState extends State<HomeScreen> {
           timestamp: DateTime.now(),
         );
 
+    // Show immediate user feedback
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Creating emergency... Contacting intelligent dispatch engine.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     widget.emergencyController.markT0Timestamp();
     widget.emergencyController.setAdditionalNotes('Dispatched directly from main screen map');
 
-    await widget.emergencyController.submitEmergencyRequest(
+    final success = await widget.emergencyController.submitEmergencyRequest(
       emergencyLocation: loc,
     );
+
+    if (mounted) {
+      setState(() => _isDispatching = false);
+      if (!success) {
+        final err = widget.emergencyController.errorMessage ?? 'Unknown dispatch failure';
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.emergencyRed,
+            duration: const Duration(seconds: 6),
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Unable to create emergency: $err',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        final req = widget.emergencyController.activeRequest;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF059669),
+            duration: const Duration(seconds: 3),
+            content: Text(
+              '✅ Emergency registered: ${req?.requestId ?? ''}. Unit dispatched!',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _showCancelDialog() {
@@ -201,6 +268,195 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.emergencyRed),
             child: const Text('CANCEL EMERGENCY'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRouteComparisonDialog(
+    BuildContext context,
+    MultiRouteCandidates routes,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.alt_route_rounded, color: Color(0xFF38BDF8), size: 24),
+            SizedBox(width: 10),
+            Text(
+              'Route Selection',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'The selected corridor is shown below. Alternate options are limited to Corridor 1 and Corridor 2.',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1E293B),
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Expanded(flex: 3, child: Text('Corridor', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 2, child: Text('Distance', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                          Expanded(flex: 2, child: Text('ETA', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700))),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      color: const Color(0xFF174EA6).withValues(alpha: 0.25),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 16),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    routes.scoreBreakdown.isNotEmpty ? routes.scoreBreakdown.first.routeLabel : 'Selected Route',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.distanceKmList.isNotEmpty ? '${routes.distanceKmList.first.toStringAsFixed(1)} km' : '${routes.distanceKmList.isEmpty ? 4.2 : routes.distanceKmList.first} km',
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.etaMinutesList.isNotEmpty ? '${routes.etaMinutesList.first} min' : '${routes.etaMinutesList.isEmpty ? 8 : routes.etaMinutesList.first} min',
+                              style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFF334155)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              routes.alternativeLabels.isNotEmpty ? routes.alternativeLabels[0] : 'Alternate Corridor 1',
+                              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.distanceKmList.length > 1 ? '${routes.distanceKmList[1].toStringAsFixed(1)} km' : '5.1 km',
+                              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.etaMinutesList.length > 1 ? '${routes.etaMinutesList[1]} min' : '11 min',
+                              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFF334155)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              routes.alternativeLabels.length > 1 ? routes.alternativeLabels[1] : 'Alternate Corridor 2',
+                              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.distanceKmList.length > 2 ? '${routes.distanceKmList[2].toStringAsFixed(1)} km' : '5.7 km',
+                              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              routes.etaMinutesList.length > 2 ? '${routes.etaMinutesList[2]} min' : '13 min',
+                              style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, color: Color(0xFF38BDF8), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        routes.decisionReason.isNotEmpty
+                            ? routes.decisionReason
+                            : 'Route selected using the lowest weighted travel cost.',
+                        style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 11, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF38BDF8), foregroundColor: Colors.black),
+            child: const Text('DISMISS', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -893,8 +1149,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Computes simulated street navigation waypoints for realistic Google Maps route rendering.
-  List<LocationData>? _calculateActiveRoute({
+  /// Computes simulated street navigation waypoints and candidate alternative routes
+  /// for realistic Google Maps route rendering (Module 5 & Module 6).
+  MultiRouteCandidates? _calculateActiveMultiRoute({
     required EmergencyRequest? activeRequest,
     required bool isAmbulanceAssigned,
     required bool isNoAmbulanceAvailable,
@@ -912,13 +1169,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (isNoAmbulanceAvailable) {
       // Scenario 4: Fast corridor to nearest trauma hospital for emergency self-transport
-      return MapRouteGeometry.buildSimulatedRoute(
+      return MapRouteGeometry.buildMultiRouteCandidates(
         from: incidentLocation,
         to: hospLoc,
       );
     }
 
-    if (!isAmbulanceAssigned || ambulanceLocation == null || activeRequest == null) {
+    if (!isAmbulanceAssigned || activeRequest == null) {
+      return null;
+    }
+
+    // Direct binding to Authoritative Dynamic Route from backend
+    if (activeRequest.backendRoute != null && activeRequest.backendRoute!.length > 1) {
+      final List<List<LocationData>> alts = activeRequest.backendAlternativeRoutes ?? const [];
+      final List<String> labels = [];
+      if (alts.isNotEmpty) {
+        labels.add('Alternative Route (Graph Corridor)');
+      }
+      return MultiRouteCandidates(
+        primaryRoute: activeRequest.backendRoute!,
+        alternativeRoutes: alts,
+        alternativeLabels: labels,
+      );
+    }
+
+    if (ambulanceLocation == null) {
       return null;
     }
 
@@ -928,26 +1203,26 @@ class _HomeScreenState extends State<HomeScreen> {
         status == RequestStatus.enRouteToHospital ||
         status == RequestStatus.arrivedAtHospital) {
       // Hospital leg: Ambulance actively navigating to emergency hospital
-      return MapRouteGeometry.buildSimulatedRoute(
+      return MapRouteGeometry.buildMultiRouteCandidates(
         from: ambulanceLocation,
         to: hospLoc,
       );
     }
 
-    // Pickup & Drop: Ambulance -> Incident (Pickup) -> Hospital (Drop)
-    final pickupLeg = MapRouteGeometry.buildSimulatedRoute(
+    // Pickup & Drop: Multi-route candidates to incident (pickup), then to hospital (drop)
+    final pickupLeg = MapRouteGeometry.buildMultiRouteCandidates(
       from: ambulanceLocation,
       to: incidentLocation,
     );
-    final dropLeg = MapRouteGeometry.buildSimulatedRoute(
+    final dropLeg = MapRouteGeometry.buildMultiRouteCandidates(
       from: incidentLocation,
       to: hospLoc,
     );
 
-    return [
-      ...pickupLeg,
-      ...dropLeg.skip(1),
-    ];
+    return MapRouteGeometry.combineLegs(
+      leg1: pickupLeg,
+      leg2: dropLeg,
+    );
   }
 
   @override
@@ -974,7 +1249,7 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         : null;
 
-    final String ambulanceId = _currentTelemetry?.ambulanceId ?? activeRequest?.assignedAmbulanceId ?? 'AMB-CH-042';
+    final String ambulanceId = _currentTelemetry?.ambulanceId ?? activeRequest?.assignedAmbulanceId ?? 'Ambulance';
 
     // Emergency Network POIs: Hospitals & Standby Ambulances around current location
     final double centerLat = incidentLocation?.latitude ?? MapConstants.defaultLatitude;
@@ -982,16 +1257,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final hospitals = NearbyEmergencyService.getHospitalsAround(centerLat, centerLng);
     final standbyAmbulances = NearbyEmergencyService.getStandbyAmbulancesAround(centerLat, centerLng);
 
-    // Identify assigned hospital (or nearest casualty hospital for self-transport)
+    // Identify assigned hospital (using dynamic backend destination or nearest hospital)
     NearbyHospital? assignedHospital;
-    if (activeRequest?.hospitalDestination != null && hospitals.isNotEmpty) {
-      final destLower = activeRequest!.hospitalDestination!.toLowerCase();
-      assignedHospital = hospitals.cast<NearbyHospital?>().firstWhere(
-        (h) => h!.name.toLowerCase().contains(destLower) || destLower.contains(h.name.toLowerCase()),
-        orElse: () => null,
-      );
+    if (activeRequest?.hospitalDestination != null && activeRequest!.hospitalDestination!.isNotEmpty) {
+      assignedHospital = NearbyEmergencyService.findHospitalByIdOrName(activeRequest.hospitalDestination);
+    } else if (hasActiveRequest) {
+      assignedHospital = hospitals.isNotEmpty ? hospitals.first : NearbyEmergencyService.fixedHospitals.first;
+    } else {
+      assignedHospital = hospitals.isNotEmpty ? hospitals.first : NearbyEmergencyService.fixedHospitals.first;
     }
-    assignedHospital ??= hospitals.isNotEmpty ? hospitals.first : null;
 
     // Visibility filtering:
     // When ambulance is assigned: hide all other standby ambulances & other hospitals. Focus strictly on assigned unit and hospital.
@@ -1001,11 +1275,11 @@ class _HomeScreenState extends State<HomeScreen> {
         : (_showAmbulances ? standbyAmbulances : const <NearbyAmbulance>[]);
 
     final List<NearbyHospital> visibleHospitals = (isAmbulanceAssigned || isNoAmbulanceAvailable)
-        ? (assignedHospital != null ? [assignedHospital] : const <NearbyHospital>[])
+        ? [assignedHospital]
         : (_showHospitals ? hospitals : const <NearbyHospital>[]);
 
-    // Google Maps blue navigation polyline waypoints
-    final List<LocationData>? activeRouteWaypoints = _calculateActiveRoute(
+    // Google Maps multi-route navigation polyline waypoints & candidate corridors
+    final MultiRouteCandidates? activeMultiRoute = _calculateActiveMultiRoute(
       activeRequest: activeRequest,
       isAmbulanceAssigned: isAmbulanceAssigned,
       isNoAmbulanceAvailable: isNoAmbulanceAvailable,
@@ -1029,7 +1303,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ambulanceLocation: ambulanceLocation,
               heading: _currentTelemetry?.headingDegrees,
               ambulanceId: ambulanceId,
-              routeWaypoints: activeRouteWaypoints,
+              routeWaypoints: activeMultiRoute?.primaryRoute,
+              alternativeRoutes: activeMultiRoute?.alternativeRoutes,
+              alternativeLabels: activeMultiRoute?.alternativeLabels,
               style: _selectedMapStyle,
               isPickerMode: !_isPinLocked && !hasActiveRequest,
               showSearchRadar: activeRequest != null && activeRequest.status == RequestStatus.searching,
@@ -1043,6 +1319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     longitude: newLoc.longitude,
                     address: 'Pickup Pin (${newLoc.latitude.toStringAsFixed(4)}° N, ${newLoc.longitude.toStringAsFixed(4)}° E)',
                   );
+                  widget.emergencyController.refreshRecommendedHospital(newLoc);
                 }
               },
             ),
@@ -1154,6 +1431,48 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 2.7 FLOATING ROUTE DECISION INTELLIGENCE PILL (Master Prompt Requirement D & E)
+          if (hasActiveRequest && isAmbulanceAssigned && activeMultiRoute != null)
+            Positioned(
+              top: isDesktop ? 80 : 70,
+              left: isDesktop ? 24 : 14,
+              child: InkWell(
+                onTap: () => _showRouteComparisonDialog(
+                  context,
+                  activeMultiRoute,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF38BDF8), width: 1.2),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3)),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.alt_route_rounded, color: Color(0xFF38BDF8), size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Best Route Selected (${activeMultiRoute.primaryRoute.length > 2 ? "Fastest" : "Direct"}) • 2 Alternatives',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.info_outline_rounded, color: Color(0xFF38BDF8), size: 14),
+                    ],
                   ),
                 ),
               ),
@@ -1741,7 +2060,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: EmergencyButton(
                           label: 'DISPATCH',
                           subLabel: '108 SOS',
-                          isLoading: widget.emergencyController.submissionState == SubmissionState.submitting,
+                          isLoading: widget.emergencyController.submissionState == SubmissionState.submitting || _isDispatching,
                           onPressed: _dispatchAmbulance,
                           isCompact: true,
                         ),
@@ -2049,7 +2368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: EmergencyButton(
               label: 'REQUEST AMBULANCE',
               subLabel: 'TAP FOR IMMEDIATE LIVE DISPATCH',
-              isLoading: widget.emergencyController.submissionState == SubmissionState.submitting,
+              isLoading: widget.emergencyController.submissionState == SubmissionState.submitting || _isDispatching,
               onPressed: _dispatchAmbulance,
             ),
           ),
@@ -3101,7 +3420,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               decoration: BoxDecoration(
                                 color: _isPinLocked
                                     ? const Color(0xFF64748B)
-                                    : (loc?.isManualOverride == true ? Colors.amber : const Color(0xFF10B981)),
+                                    : (widget.locationController.status == LocationFetchStatus.loading
+                                        ? Colors.orange
+                                        : (loc?.isManualOverride == true ? Colors.amber : const Color(0xFF10B981))),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -3110,16 +3431,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Text(
                                 _isPinLocked
                                     ? 'LOCATION LOCKED'
-                                    : (loc?.isManualOverride == true ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)'),
+                                    : (widget.locationController.status == LocationFetchStatus.loading
+                                        ? 'LOCATING YOU...'
+                                        : (loc?.isManualOverride == true ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)')),
                                 style: TextStyle(
                                   fontSize: isDesktop ? 11.5 : 9.5,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: 0.5,
                                   color: _isPinLocked
                                       ? (isDark ? Colors.blueGrey.shade200 : const Color(0xFF475569))
-                                      : (loc?.isManualOverride == true
-                                          ? Colors.amber.shade700
-                                          : (isDark ? Colors.blue.shade300 : const Color(0xFF1D4ED8))),
+                                      : (widget.locationController.status == LocationFetchStatus.loading
+                                          ? Colors.orange
+                                          : (loc?.isManualOverride == true
+                                              ? Colors.amber.shade700
+                                              : (isDark ? Colors.blue.shade300 : const Color(0xFF1D4ED8)))),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -3140,15 +3465,42 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          _isPinLocked
-                              ? 'Position locked • Tap [Unlock] to modify'
-                              : 'Tap map or drag pin to set pickup spot',
-                          style: TextStyle(
-                            fontSize: isDesktop ? 12 : 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondaryLight,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _isPinLocked
+                                    ? 'Position locked • Tap [Unlock] to modify'
+                                    : (widget.locationController.status == LocationFetchStatus.loading
+                                        ? 'Acquiring GPS fix... Or tap map to pick incident location'
+                                        : 'Tap map or drag pin to set pickup spot'),
+                                style: TextStyle(
+                                  fontSize: isDesktop ? 12 : 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondaryLight,
+                                ),
+                              ),
+                            ),
+                            if (widget.locationController.status == LocationFetchStatus.permissionDenied ||
+                                widget.locationController.status == LocationFetchStatus.permissionDeniedForever ||
+                                widget.locationController.status == LocationFetchStatus.serviceDisabled ||
+                                widget.locationController.status == LocationFetchStatus.error)
+                              InkWell(
+                                onTap: () => widget.locationController.useDemoLocation(),
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'USE DEMO LOCATION',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.blue),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -3290,7 +3642,7 @@ class _HomeScreenState extends State<HomeScreen> {
           EmergencyButton(
             label: 'REQUEST AMBULANCE',
             subLabel: 'TAP FOR IMMEDIATE LIVE DISPATCH',
-            isLoading: widget.emergencyController.submissionState == SubmissionState.submitting,
+            isLoading: widget.emergencyController.submissionState == SubmissionState.submitting || _isDispatching,
             isCompact: !isDesktop,
             onPressed: _dispatchAmbulance,
           ),

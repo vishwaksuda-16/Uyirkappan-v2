@@ -23,7 +23,8 @@ class AmbulanceController {
   async updateLocation(req, res) {
     const result = await this.ambulanceService.updateLocation(req.params.ambulanceId, req.body || {}, req.user);
     if (!result.ok) return res.status(result.status).json({ success: false, message: result.message });
-    return res.json({ success: true, ambulance: result.ambulance, eta: result.eta });
+    console.log(`[GPS] ${req.params.ambulanceId} → ${req.body?.latitude}, ${req.body?.longitude}`);
+    return res.json({ success: true, ok: true, ambulance: result.ambulance, eta: result.eta });
   }
 }
 

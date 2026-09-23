@@ -20,7 +20,7 @@ class SocketService {
 
   /**
    * Connect to central WebSocket server
-   * Pattern: io('http://localhost:4000', { auth: { token: 'JWT' } })
+   * Pattern: io('http://localhost:5000', { auth: { token: 'JWT' } })
    */
   connect(token) {
     if (token) {
@@ -33,7 +33,7 @@ class SocketService {
 
     const socketUrl =
       (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SOCKET_URL) ||
-      'http://localhost:4000';
+      'http://localhost:5000';
 
     try {
       this.socket = io(socketUrl, {
@@ -148,8 +148,8 @@ class SocketService {
     if (!requestId) return;
     this.activeEmergencyRooms.add(requestId);
     if (this.socket && this.socket.connected) {
-      // Backend listens for 'join_emergency' to add socket to emergency:{requestId} room
-      this.socket.emit('join_emergency', { requestId });
+      // Backend listens for 'join_emergency' with plain string requestId
+      this.socket.emit('join_emergency', requestId);
     }
   }
 
@@ -160,8 +160,8 @@ class SocketService {
     if (!requestId) return;
     this.activeEmergencyRooms.delete(requestId);
     if (this.socket && this.socket.connected) {
-      // Backend listens for 'leave_emergency' to remove socket from emergency:{requestId} room
-      this.socket.emit('leave_emergency', { requestId });
+      // Backend listens for 'leave_emergency' with plain string requestId
+      this.socket.emit('leave_emergency', requestId);
     }
   }
 

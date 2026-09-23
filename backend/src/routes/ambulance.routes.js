@@ -7,12 +7,14 @@ module.exports = function buildAmbulanceRoutes(ctx) {
   const router = Router();
   const ctrl = new AmbulanceController(ctx);
 
-  router.use(authMiddleware(ctx.store));
-
   router.get('/', (req, res) => ctrl.list(req, res));
   router.get('/:ambulanceId', (req, res) => ctrl.get(req, res));
+
+  router.use(authMiddleware(ctx.store));
+
   router.patch('/:ambulanceId/status', requireRole('DRIVER', 'ADMIN'), (req, res) => ctrl.updateStatus(req, res));
   router.post('/:ambulanceId/location', requireRole('DRIVER', 'ADMIN'), (req, res) => ctrl.updateLocation(req, res));
+  router.patch('/:ambulanceId/location', requireRole('DRIVER', 'ADMIN'), (req, res) => ctrl.updateLocation(req, res));
 
   return router;
 };

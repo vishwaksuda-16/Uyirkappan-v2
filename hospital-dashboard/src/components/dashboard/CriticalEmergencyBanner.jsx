@@ -122,7 +122,7 @@ export function CriticalEmergencyBanner({ emergency }) {
         </div>
 
         <button
-          onClick={() => navigate(`/emergencies/${emergency.requestId}`)}
+          onClick={() => navigate(`/emergency/${emergency.requestId}`)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
