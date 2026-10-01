@@ -122,22 +122,20 @@ class EmergencyService {
     }
 
     // Calculate Baseline Dispatch & Routing for comparison
-    let baselineRoute = selection.baselineRoute || null;
-    let baselineEta = selection.baselineEta ?? null;
-    let baselineDistance = selection.baselineDistance ?? null;
-    let baselineAmbulanceId = selection.baselineAmbulanceId || null;
-    let etaImprovementPct = selection.etaImprovementPct ?? 0;
+    let baselineRoute = null;
+    let baselineEta = null;
+    let baselineDistance = null;
+    let etaImprovementPct = 0;
 
     try {
       const matcher = require('../matcher/index').getMatcherServices();
-      if (!baselineRoute && matcher && selection.ambulance?.currentLocation && request.pickupLocation) {
+      if (matcher && selection.ambulance?.currentLocation && request.pickupLocation) {
         baselineRoute = matcher.dijkstraService.findDynamicBaselineRoute(
           selection.ambulance.currentLocation,
           request.pickupLocation
         );
         baselineEta = Math.round(baselineRoute.travelTimeMinutes);
         baselineDistance = baselineRoute.distanceKm;
-        baselineAmbulanceId = selection.ambulance.id;
         if (baselineEta > selection.estimatedTravelTime) {
           etaImprovementPct = Math.round(((baselineEta - selection.estimatedTravelTime) / baselineEta) * 1000) / 10;
         }
@@ -165,7 +163,6 @@ class EmergencyService {
       baselineRoute,
       baselineEta,
       baselineDistance,
-      baselineAmbulanceId,
       etaImprovementPct,
     });
     await this.store.updateAmbulance(selection.ambulance.id, {
@@ -183,7 +180,6 @@ class EmergencyService {
       baselineRoute,
       baselineEta,
       baselineDistance,
-      baselineAmbulanceId,
       etaImprovementPct,
       debug: debugObject,
     });
@@ -222,7 +218,6 @@ class EmergencyService {
       baselineRoute,
       baselineEta,
       baselineDistance,
-      baselineAmbulanceId,
       etaImprovementPct,
       debug: debugObject,
       source,
@@ -292,7 +287,6 @@ class EmergencyService {
       baselineRoute,
       baselineEta,
       baselineDistance,
-      baselineAmbulanceId,
       etaImprovementPct,
       cost: selection.cost,
       score: selection.score,

@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     fs: {
-      allow: [path.resolve(__dirname, '..')],
+      allow: [path.resolve(import.meta.dirname, '..')],
     },
   },
 });
