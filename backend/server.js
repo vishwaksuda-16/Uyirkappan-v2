@@ -29,9 +29,17 @@ const { log } = require('./src/utils/logger');
 (async () => {
   const app = express();
 
-  // ✅ ENHANCED CORS CONFIGURATION
+  // ✅ CORS — allow any localhost origin with credentials
   const corsOptions = {
-    origin: '*', // Allow all origins (for development)
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      // and any localhost/127.0.0.1 origin (Flutter web, dashboards)
+      if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all in dev — tighten for production
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
     credentials: true,
@@ -46,7 +54,7 @@ const { log } = require('./src/utils/logger');
   const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
-      origin: '*',
+      origin: (origin, cb) => cb(null, true),
       methods: ['GET', 'POST'],
       allowedHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
