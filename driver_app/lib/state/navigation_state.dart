@@ -6,6 +6,7 @@ import '../models/hospital.dart';
 import '../models/location_model.dart';
 import '../models/route_model.dart';
 import '../repositories/driver_repository.dart';
+import '../services/location/location_provider.dart';
 
 enum JourneyPhase {
   none,
@@ -20,12 +21,14 @@ class NavigationState extends ChangeNotifier {
   RouteModel? _activeRoute;
   List<RouteModel> _alternativeRoutes = [];
   AmbulanceLocation? _currentLocation;
+  LocationProviderStatus _locationStatus = LocationProviderStatus.simulation;
   double _distanceRemainingKm = 0.0;
   int _dynamicEtaMinutes = 0;
   String? _trafficAlert;
   String _destinationName = '';
 
   StreamSubscription? _locationSub;
+  StreamSubscription? _statusSub;
   StreamSubscription? _etaSub;
   StreamSubscription? _routeSub;
 
@@ -38,6 +41,7 @@ class NavigationState extends ChangeNotifier {
   RouteModel? get activeRoute => _activeRoute;
   List<RouteModel> get alternativeRoutes => _alternativeRoutes;
   AmbulanceLocation? get currentLocation => _currentLocation;
+  LocationProviderStatus get locationStatus => _locationStatus;
   double get distanceRemainingKm => _distanceRemainingKm;
   int get dynamicEtaMinutes => _dynamicEtaMinutes;
   String? get trafficAlert => _trafficAlert;
@@ -51,6 +55,12 @@ class NavigationState extends ChangeNotifier {
   bool get hasActiveNavigation => _phase != JourneyPhase.none;
 
   void _initSubscriptions() {
+    _locationStatus = _repository.locationStatus;
+    _statusSub = _repository.onLocationStatusChanged.listen((status) {
+      _locationStatus = status;
+      notifyListeners();
+    });
+
     _locationSub = _repository.locationStream.listen((location) {
       _currentLocation = location;
       _recalculateRemainingMetrics(location);
@@ -187,6 +197,7 @@ class NavigationState extends ChangeNotifier {
   @override
   void dispose() {
     _locationSub?.cancel();
+    _statusSub?.cancel();
     _etaSub?.cancel();
     _routeSub?.cancel();
     super.dispose();

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import apiClient from '../services/api';
+import hospitalApi from '../services/hospitalApi';
 import socketService from '../services/socketService';
 import { API_ENDPOINTS } from '../constants/apiEndpoints';
 import { AuthContext } from './authContextDef';

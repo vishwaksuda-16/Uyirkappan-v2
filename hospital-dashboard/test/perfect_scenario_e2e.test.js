@@ -2,9 +2,13 @@
  * End-to-End Perfect Scenario Integration Test
  * Simulates all 4 modules working together:
  * 1. Bystander (Module 1)
- * 2. Driver 1 (Module 2)
+ * 2. Driver (Module 2) — dynamically determined by matcher
  * 3. Hospital Dashboard (Module 3)
  * 4. Backend & Intelligent Matcher (Module 4)
+ *
+ * FIX: Driver login and ambulance IDs are now dynamically derived from the
+ * dispatch response instead of being hardcoded, so the test works regardless
+ * of which ambulance the Intelligent Matcher selects.
  */
 
 import assert from 'node:assert/strict';
@@ -63,8 +67,8 @@ async function runPerfectScenario() {
   console.log('STARTING PERFECT SCENARIO END-TO-END INTEGRATION TEST');
   console.log('============================================================\n');
 
-  // STEP 1: Log in all 3 client personas
-  console.log('1. Authenticating Bystander, Driver 1, and Hospital Staff...');
+  // STEP 1: Log in Bystander and Hospital Staff first
+  console.log('1. Authenticating Bystander and Hospital Staff...');
   const bystanderAuth = await postJson(`${API_URL}/auth/login`, {
     email: 'bystander@uyirkappan.demo',
     password: 'password123',
@@ -72,29 +76,54 @@ async function runPerfectScenario() {
   assert.ok(bystanderAuth.token, 'Bystander must receive token');
   console.log('   ✓ Bystander authenticated');
 
-  const driver1Auth = await postJson(`${API_URL}/auth/login`, {
-    email: 'driver1@uyirkappan.demo',
-    password: 'password123',
-  });
-  assert.ok(driver1Auth.token, 'Driver 1 must receive token');
-  console.log('   ✓ Driver 1 authenticated');
-
   const hospitalAuth = await postJson(`${API_URL}/auth/login`, {
     email: 'staff@uyirkappan.demo',
     password: 'password123',
   });
   assert.ok(hospitalAuth.token, 'Hospital staff must receive token');
-  console.log('   ✓ Hospital staff authenticated');
+  console.log('   ✓ Hospital staff authenticated (H001)');
 
-  // STEP 2: Connect Socket.IO clients for each persona
-  console.log('\n2. Connecting real-time Socket.IO channels...');
+  // STEP 2: Create Emergency FIRST to discover which ambulance/driver is assigned
+  console.log('\n2. Bystander submits emergency incident (POST /api/emergency)...');
+  const emergencyPayload = {
+    emergencyType: 'CARDIAC',
+    victimCount: 1,
+    pickupLocation: { latitude: 13.0330, longitude: 80.2210 },
+  };
+  const createdEmergency = await postJson(`${API_URL}/emergency`, emergencyPayload, bystanderAuth.token);
+  const requestId = createdEmergency.requestId;
+  const assignedAmbulanceId = createdEmergency.ambulanceId;
+  const assignedDriverId = createdEmergency.driverId;
+  const assignmentId = createdEmergency.assignmentId;
+  const destinationHospitalId = createdEmergency.destinationHospitalId;
+
+  assert.ok(requestId, 'Emergency creation must return requestId');
+  assert.ok(assignedAmbulanceId, 'Emergency must have ambulanceId');
+  assert.ok(assignedDriverId, 'Emergency must have driverId');
+  assert.ok(assignmentId, 'Emergency must have assignmentId');
+  console.log(`   ✓ Emergency created: ${requestId}`);
+  console.log(`   ✓ Intelligent Matcher selected: ${assignedAmbulanceId} (Driver: ${assignedDriverId}, ETA: ${createdEmergency.eta} min)`);
+  console.log(`   ✓ Destination hospital: ${destinationHospitalId}`);
+
+  // STEP 3: Now log in as the ACTUAL assigned driver (not hardcoded driver1)
+  console.log('\n3. Authenticating the assigned driver...');
+  const driverEmail = `${assignedDriverId.toLowerCase()}@uyirkappan.demo`;
+  const driverAuth = await postJson(`${API_URL}/auth/login`, {
+    email: driverEmail,
+    password: 'password123',
+  });
+  assert.ok(driverAuth.token, `Driver ${assignedDriverId} must receive token`);
+  console.log(`   ✓ Driver ${assignedDriverId} authenticated (${driverEmail})`);
+
+  // STEP 4: Connect Socket.IO clients
+  console.log('\n4. Connecting real-time Socket.IO channels...');
   const bystanderSocket = io(BACKEND_URL, {
     auth: { token: bystanderAuth.token },
     transports: ['websocket', 'polling'],
   });
 
   const driverSocket = io(BACKEND_URL, {
-    auth: { token: driver1Auth.token },
+    auth: { token: driverAuth.token },
     transports: ['websocket', 'polling'],
   });
 
@@ -110,9 +139,14 @@ async function runPerfectScenario() {
   ]);
   console.log('   ✓ All 3 Socket.IO clients connected');
 
-  // Hospital joins facility room
-  hospitalSocket.emit('join:hospital', { hospitalId: 'HOSP-01' });
-  console.log('   ✓ Hospital joined room hospital:HOSP-01');
+  // Join relevant rooms
+  bystanderSocket.emit('join_emergency', requestId);
+  driverSocket.emit('join_emergency', requestId);
+  hospitalSocket.emit('join_emergency', requestId);
+  if (destinationHospitalId) {
+    hospitalSocket.emit('join:hospital', { hospitalId: destinationHospitalId });
+  }
+  console.log(`   ✓ All clients joined emergency:${requestId}`);
 
   // Track received socket events across clients
   const bystanderEvents = [];
@@ -123,43 +157,9 @@ async function runPerfectScenario() {
   driverSocket.onAny((event, data) => driverEvents.push({ event, data }));
   hospitalSocket.onAny((event, data) => hospitalEvents.push({ event, data }));
 
-  // Prepare driver promise for AMBULANCE_ASSIGNED
-  const driverAssignmentPromise = new Promise((resolve) => {
-    driverSocket.on('AMBULANCE_ASSIGNED', (data) => {
-      console.log('   [Driver Socket] AMBULANCE_ASSIGNED received:', data.assignmentId || data.id);
-      resolve(data);
-    });
-  });
-
-  // STEP 3: Bystander creates Emergency Request
-  console.log('\n3. Bystander submits emergency incident (POST /api/emergency)...');
-  const emergencyPayload = {
-    emergencyType: 'CARDIAC',
-    victimCount: 1,
-    pickupLocation: { latitude: 13.0330, longitude: 80.2210 },
-  };
-  const createdEmergency = await postJson(`${API_URL}/emergency`, emergencyPayload, bystanderAuth.token);
-  const requestId = createdEmergency.requestId;
-  assert.ok(requestId, 'Emergency creation must return requestId');
-  console.log(`   ✓ Emergency created: ${requestId}`);
-  console.log(`   ✓ Intelligent Matcher selected: ${createdEmergency.ambulanceId} (ETA: ${createdEmergency.eta} min)`);
-
-  // Bystander and Hospital join emergency room
-  bystanderSocket.emit('join_emergency', requestId);
-  hospitalSocket.emit('join_emergency', requestId);
-  console.log(`   ✓ Bystander and Hospital joined emergency:${requestId}`);
-
-  // STEP 4: Driver receives real-time assignment
-  console.log('\n4. Awaiting Driver assignment delivery...');
-  const assignmentData = await driverAssignmentPromise;
-  const assignmentId = assignmentData.assignmentId || assignmentData.id || createdEmergency.assignmentId;
-  assert.ok(assignmentId, 'Assignment ID must be present');
-  console.log(`   ✓ Driver received dispatch assignment ${assignmentId}`);
-
   // STEP 5: Driver accepts assignment
   console.log('\n5. Driver accepts assignment (POST /api/assignments/:id/accept)...');
-  driverSocket.emit('join_emergency', requestId);
-  const acceptResult = await postJson(`${API_URL}/assignments/${assignmentId}/accept`, {}, driver1Auth.token);
+  const acceptResult = await postJson(`${API_URL}/assignments/${assignmentId}/accept`, {}, driverAuth.token);
   assert.ok(acceptResult.success, 'Driver acceptance must succeed');
   console.log(`   ✓ Driver accepted! ETA: ${acceptResult.eta} min`);
 
@@ -167,7 +167,7 @@ async function runPerfectScenario() {
 
   // STEP 6: Driver transitions to EN_ROUTE_TO_PATIENT and streams GPS location
   console.log('\n6. Driver transitions to EN_ROUTE_TO_PATIENT and streams GPS telemetry...');
-  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'EN_ROUTE_TO_PATIENT' }, driver1Auth.token);
+  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'EN_ROUTE_TO_PATIENT' }, driverAuth.token);
   console.log('   ✓ Status updated to EN_ROUTE_TO_PATIENT');
 
   // Set up listeners for telemetry and ETA updates on Bystander & Hospital
@@ -177,12 +177,13 @@ async function runPerfectScenario() {
   bystanderSocket.on('AMBULANCE_LOCATION_UPDATED', () => { bystanderGotTelemetry = true; });
   hospitalSocket.on('AMBULANCE_LOCATION_UPDATED', () => { hospitalGotTelemetry = true; });
 
+  // Use the ACTUAL assigned ambulance ID for GPS posting
   const locationRes = await postJson(
-    `${API_URL}/ambulances/AMB-01/location`,
+    `${API_URL}/ambulances/${assignedAmbulanceId}/location`,
     { latitude: 13.0750, longitude: 80.2650, speed: 45, heading: 120 },
-    driver1Auth.token
+    driverAuth.token
   );
-  console.log(`   ✓ GPS telemetry posted: ${locationRes.ambulance?.currentLocation?.latitude}, ${locationRes.ambulance?.currentLocation?.longitude} (ETA: ${locationRes.eta} min)`);
+  console.log(`   ✓ GPS telemetry posted for ${assignedAmbulanceId}: ${locationRes.ambulance?.currentLocation?.latitude}, ${locationRes.ambulance?.currentLocation?.longitude} (ETA: ${locationRes.eta} min)`);
 
   await sleep(500);
   assert.ok(bystanderGotTelemetry, 'Bystander must receive AMBULANCE_LOCATION_UPDATED via Socket.IO');
@@ -191,15 +192,15 @@ async function runPerfectScenario() {
 
   // STEP 7: Lifecycle progression (ARRIVED_AT_PATIENT -> PATIENT_ONBOARD -> EN_ROUTE_TO_HOSPITAL)
   console.log('\n7. Driver advances through patient stabilization lifecycle...');
-  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'ARRIVED_AT_PATIENT' }, driver1Auth.token);
+  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'ARRIVED_AT_PATIENT' }, driverAuth.token);
   console.log('   ✓ Status updated: ARRIVED_AT_PATIENT');
   await sleep(300);
 
-  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'PATIENT_ONBOARD' }, driver1Auth.token);
+  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'PATIENT_ONBOARD' }, driverAuth.token);
   console.log('   ✓ Status updated: PATIENT_ONBOARD');
   await sleep(300);
 
-  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'EN_ROUTE_TO_HOSPITAL' }, driver1Auth.token);
+  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'EN_ROUTE_TO_HOSPITAL' }, driverAuth.token);
   console.log('   ✓ Status updated: EN_ROUTE_TO_HOSPITAL');
   await sleep(300);
 
@@ -211,7 +212,7 @@ async function runPerfectScenario() {
   bystanderSocket.on('EMERGENCY_COMPLETED', () => { bystanderCompleted = true; });
   hospitalSocket.on('EMERGENCY_COMPLETED', () => { hospitalCompleted = true; });
 
-  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'ARRIVED_AT_HOSPITAL' }, driver1Auth.token);
+  await patchJson(`${API_URL}/assignments/${assignmentId}/status`, { status: 'ARRIVED_AT_HOSPITAL' }, driverAuth.token);
   console.log('   ✓ Status updated: ARRIVED_AT_HOSPITAL');
 
   await sleep(600);
@@ -221,15 +222,20 @@ async function runPerfectScenario() {
 
   // STEP 9: Verify Hospital History contains the completed case
   console.log('\n9. Verifying Hospital Emergency History and Ambulance Status...');
-  const historyRes = await getJson(`${API_URL}/hospitals/HOSP-01/emergency-history`, hospitalAuth.token);
-  const historyList = historyRes.history || historyRes;
-  const foundInHistory = historyList.some((item) => item.requestId === requestId);
-  assert.ok(foundInHistory, `Emergency ${requestId} must appear in Hospital Emergency History`);
-  console.log(`   ✓ Emergency ${requestId} confirmed in hospital completed history`);
 
-  const ambData = await getJson(`${API_URL}/ambulances/AMB-01`, driver1Auth.token);
-  assert.equal(ambData.ambulance.status, 'AVAILABLE', 'AMB-01 status must return to AVAILABLE');
-  console.log(`   ✓ Ambulance AMB-01 status successfully restored to ${ambData.ambulance.status}`);
+  // Use the actual destination hospital ID for history query
+  if (destinationHospitalId) {
+    const historyRes = await getJson(`${API_URL}/hospitals/${destinationHospitalId}/emergency-history`, hospitalAuth.token);
+    const historyList = historyRes.history || historyRes;
+    const foundInHistory = historyList.some((item) => item.requestId === requestId);
+    assert.ok(foundInHistory, `Emergency ${requestId} must appear in Hospital Emergency History`);
+    console.log(`   ✓ Emergency ${requestId} confirmed in hospital ${destinationHospitalId} completed history`);
+  }
+
+  // Use the actual assigned ambulance ID for status check
+  const ambData = await getJson(`${API_URL}/ambulances/${assignedAmbulanceId}`, driverAuth.token);
+  assert.equal(ambData.ambulance.status, 'AVAILABLE', `${assignedAmbulanceId} status must return to AVAILABLE`);
+  console.log(`   ✓ Ambulance ${assignedAmbulanceId} status successfully restored to ${ambData.ambulance.status}`);
 
   // Cleanup
   bystanderSocket.disconnect();

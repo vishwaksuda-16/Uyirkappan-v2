@@ -128,8 +128,47 @@ export function AmbulanceMap({
             }}
           >
             <Navigation size={14} className="animate-pulse" />
-            <span>LIVE GPS TRACKING: {emergency?.ambulanceId || 'AMBULANCE'}</span>
+            <span>GPS TRACKING: {emergency?.ambulanceId || 'AMBULANCE'}</span>
           </div>
+
+          {/* Telemetry Source Badge: LIVE vs SIMULATION */}
+          {currentLocation?.provider === 'real' || currentLocation?.gpsSource === 'DEVICE' || currentLocation?.isSimulated === false ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '2px 7px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid var(--status-success-border)',
+                color: 'var(--status-success)',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              ● GPS LIVE (REAL)
+            </span>
+          ) : (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '2px 7px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid var(--status-info-border)',
+                color: 'var(--status-info)',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+              }}
+            >
+              ○ GPS SIMULATION
+            </span>
+          )}
 
           {isStale && (
             <span

@@ -16,8 +16,21 @@ const assignmentSchema = new mongoose.Schema(
     assignedAt: Date,
     responseAt: Date,
     expiresAt: Date,
+    route: mongoose.Schema.Types.Mixed,
+    alternativeRoutes: [mongoose.Schema.Types.Mixed],
+    hospitalRoute: mongoose.Schema.Types.Mixed,
+    destinationHospital: mongoose.Schema.Types.Mixed,
+    baselineRoute: mongoose.Schema.Types.Mixed,
+    baselineEta: Number,
+    baselineDistance: Number,
+    etaImprovementPct: Number,
+    scoreBreakdown: mongoose.Schema.Types.Mixed,
+    decisionReason: String,
+    candidates: [mongoose.Schema.Types.Mixed],
+    cost: Number,
+    score: Number,
   },
-  { collection: 'assignments', timestamps: true }
+  { collection: 'assignments', timestamps: true, strict: false }
 );
 // Ensure only one attempt per (request, attemptNumber)
 assignmentSchema.index({ requestId: 1, attemptNumber: 1 }, { unique: true });

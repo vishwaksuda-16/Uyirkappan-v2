@@ -78,7 +78,7 @@ void main() async {
 
 /// Global ValueNotifier for toggling between Light and Dark mode across the application.
 /// Defaulted to Dark mode to match the Driver and Hospital tactical emergency theme.
-final ValueNotifier<ThemeMode> appThemeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
+final ValueNotifier<ThemeMode> appThemeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 /// Root Application Widget for UyirKappan Module 1 (Bystander App).
 class UyirKappanBystanderApp extends StatelessWidget {

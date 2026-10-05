@@ -1,33 +1,54 @@
 const { verifyToken } = require('../utils/security');
+const logger = require('../utils/logger');
+const { ErrorCode } = require('../utils/errors');
 
 module.exports = function authMiddleware(store) {
-  return async (req, res, next) => {  // ✅ ADD 'async' here
+  return async (req, res, next) => {
     const header = req.headers.authorization || '';
-    console.log('[AUTH] Authorization header:', header ? 'Present' : 'Missing');
     
     if (!header.startsWith('Bearer ')) {
-      console.log('[AUTH] No Bearer token found');
+      logger.warn({
+        event: 'SECURITY_AUTH_FAILED',
+        errorCode: ErrorCode.AUTHENTICATION_ERROR,
+        correlationId: req.correlationId,
+        message: 'No Bearer token provided',
+      });
       return res.status(401).json({ success: false, message: 'No token provided' });
     }
     
     const token = header.slice(7);
     try {
       const payload = verifyToken(token);
-      console.log('[AUTH] Token payload:', payload);
-      
-      const user = await store.findUserById(payload.sub);  // ✅ ADD 'await' here
-      console.log('[AUTH] User found:', user ? user.id : 'Not found');
+      const user = await store.findUserById(payload.sub);
       
       if (!user) {
-        console.log('[AUTH] User not found in database');
+        logger.warn({
+          event: 'SECURITY_AUTH_FAILED',
+          errorCode: ErrorCode.AUTHENTICATION_ERROR,
+          correlationId: req.correlationId,
+          userId: payload.sub,
+          message: 'User not found in database',
+        });
         return res.status(401).json({ success: false, message: 'User not found' });
       }
       
       req.user = user;
-      console.log('[AUTH] User attached to req.user:', req.user.id, 'Role:', req.user.role);
+      logger.debug({
+        event: 'SECURITY_AUTH_SUCCESS',
+        correlationId: req.correlationId,
+        userId: user.id,
+        role: user.role,
+        message: `Authenticated user ${user.id} (${user.role})`,
+      });
       next();
     } catch (err) {
-      console.log('[AUTH] Token verification failed:', err.message);
+      logger.warn({
+        event: 'SECURITY_AUTH_FAILED',
+        errorCode: ErrorCode.AUTHENTICATION_ERROR,
+        correlationId: req.correlationId,
+        reason: err.name,
+        message: `Token verification failed: ${err.message}`,
+      });
       return res.status(401).json({
         success: false,
         code: err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID',

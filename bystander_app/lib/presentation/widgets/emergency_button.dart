@@ -85,16 +85,16 @@ class _EmergencyButtonState extends State<EmergencyButton>
                   borderRadius: BorderRadius.circular(compact ? 20 : 28),
                   gradient: const LinearGradient(
                     colors: [
-                      Color(0xFFEF4444),
-                      Color(0xFFDC2626),
-                      Color(0xFFB91C1C),
+                      Color(0xFF14B8A6),
+                      Color(0xFF0D9488),
+                      Color(0xFF0F766E),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFDC2626).withValues(alpha: _glowAnimation.value),
+                      color: const Color(0xFF0D9488).withValues(alpha: _glowAnimation.value),
                       blurRadius: compact ? 18 : 28,
                       spreadRadius: compact ? 2 : 4,
                       offset: const Offset(0, 6),

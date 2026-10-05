@@ -81,6 +81,7 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => RequestStatusScreen(
             emergencyController: emergencyController,
+            trackingRepository: trackingRepository,
           ),
         );
 

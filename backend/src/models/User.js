@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
     hospitalId: String,
     ambulanceId: String,
   },
-  { collection: 'users', timestamps: true }
+  { collection: 'users', timestamps: true, strict: false }
 );
 
 module.exports = mongoose.model('User', userSchema);

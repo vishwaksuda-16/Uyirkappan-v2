@@ -435,9 +435,9 @@ export function EmergencyProvider({ children }) {
     socketService.on(SOCKET_EVENTS.ETA_UPDATED, handleEtaUpdate);
     socketService.on(SOCKET_EVENTS.STATUS_UPDATED, handleStatusUpdate);
     socketService.on(SOCKET_EVENTS.ROUTE_UPDATED, handleRouteUpdated);
-    socketService.on(SOCKET_EVENTS.PATIENT_ONBOARD, (data) =>
-      handleStatusUpdate({ ...data, status: 'PATIENT_ONBOARD' })
-    );
+    const handlePatientOnboard = (data) =>
+      handleStatusUpdate({ ...data, status: 'PATIENT_ONBOARD' });
+    socketService.on(SOCKET_EVENTS.PATIENT_ONBOARD, handlePatientOnboard);
     socketService.on(SOCKET_EVENTS.FALLBACK_STARTED, handleFallbackStarted);
     socketService.on(SOCKET_EVENTS.AMBULANCE_REASSIGNED, handleFallbackUpdate);
     socketService.on(SOCKET_EVENTS.FALLBACK_ASSIGNMENT_UPDATED, handleFallbackUpdate);
@@ -456,6 +456,7 @@ export function EmergencyProvider({ children }) {
       socketService.off(SOCKET_EVENTS.ETA_UPDATED, handleEtaUpdate);
       socketService.off(SOCKET_EVENTS.STATUS_UPDATED, handleStatusUpdate);
       socketService.off(SOCKET_EVENTS.ROUTE_UPDATED, handleRouteUpdated);
+      socketService.off(SOCKET_EVENTS.PATIENT_ONBOARD, handlePatientOnboard);
       socketService.off(SOCKET_EVENTS.FALLBACK_STARTED, handleFallbackStarted);
       socketService.off(SOCKET_EVENTS.AMBULANCE_REASSIGNED, handleFallbackUpdate);
       socketService.off(SOCKET_EVENTS.FALLBACK_ASSIGNMENT_UPDATED, handleFallbackUpdate);

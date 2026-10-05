@@ -5,8 +5,10 @@ import '../../../domain/entities/location_data.dart';
 import '../../../domain/entities/tracking_info.dart';
 import '../../../domain/repositories/tracking_repository.dart';
 import '../../controllers/emergency_controller.dart';
+import '../../widgets/gps_provenance_badge.dart';
 import '../../widgets/map/map_style_selector.dart';
 import '../../widgets/map/openfreemap_view.dart';
+import '../../widgets/stale_telemetry_banner.dart';
 
 /// Screen 6: High-Fidelity Live Tracking & Telemetry Screen powered by OpenFreeMap & MapLibre GL.
 /// Displays real-time / simulated ambulance GPS movement, heading, route polyline, and dynamic ETA.
@@ -168,9 +170,22 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 6),
+                              GpsProvenanceBadge(
+                                isRealGps: telemetry?.isRealGps ?? false,
+                                isStale: telemetry?.isStale ?? false,
+                                secondsSinceUpdate: telemetry?.secondsSinceUpdate,
+                                isCompact: true,
+                              ),
                             ],
                           ),
                         ),
+                        if (telemetry?.isStale == true) ...[
+                          const SizedBox(height: 6),
+                          StaleTelemetryBanner(
+                            secondsDelayed: telemetry!.secondsSinceUpdate,
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         MapStyleSelector(
                           currentStyle: _selectedMapStyle,
@@ -260,6 +275,13 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                                           ),
                                         ),
                                       ),
+                                      const SizedBox(width: 6),
+                                      GpsProvenanceBadge(
+                                        isRealGps: telemetry?.isRealGps ?? false,
+                                        isStale: telemetry?.isStale ?? false,
+                                        secondsSinceUpdate: telemetry?.secondsSinceUpdate,
+                                        isCompact: true,
+                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 2),
@@ -274,7 +296,7 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                                 ],
                               ),
                             ),
-                            // Quick Call Button
+                            // Quick Call Button (accessible >= 48x48 touch target)
                             InkWell(
                               onTap: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -286,6 +308,7 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                               },
                               borderRadius: BorderRadius.circular(20),
                               child: Container(
+                                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: AppColors.success,

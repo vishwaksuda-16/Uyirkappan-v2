@@ -44,15 +44,21 @@ export function IncomingEmergencyList({
         return (
           <div
             key={emergency.requestId}
+            role="button"
+            tabIndex={0}
+            aria-label={`Emergency ${emergency.requestId}: ${emergency.emergencyType}, ${emergency.victimCount} patient${emergency.victimCount === 1 ? '' : 's'}, ETA ${emergency.eta || 'unknown'} minutes`}
             onClick={() => navigate(`/emergency/${emergency.requestId}`)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/emergency/${emergency.requestId}`); } }}
             style={{
               backgroundColor: 'var(--bg-card)',
               border: `1px solid ${isCritical ? 'var(--status-critical-border)' : 'var(--border-default)'}`,
               borderRadius: 'var(--radius-md)',
               padding: '16px 20px',
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: '12px',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
               position: 'relative',

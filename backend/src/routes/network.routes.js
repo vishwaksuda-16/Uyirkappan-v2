@@ -72,9 +72,39 @@ router.get('/graph', (req, res) => {
       nodes,
       edges,
       currentTraffic: matcher.trafficService.getTimeOfDayTraffic(),
+      routingProvider: matcher.routingProvider ? matcher.routingProvider.getProviderName() : 'existing',
+      graphSummary: matcher.routingProvider ? matcher.routingProvider.getGraphSummary() : null,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/network/snap?lat=13.0827&lng=80.2707&maxDistance=500
+ * Snaps arbitrary GPS coordinates to nearest KML road centerline
+ */
+router.get('/snap', (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const maxDistance = req.query.maxDistance ? Number(req.query.maxDistance) : 500;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: 'lat and lng query parameters must be finite numbers' });
+    }
+
+    const { RoadNetworkService } = require('../services/road-network');
+    const service = RoadNetworkService.getInstance();
+    const result = service.snapGps({ latitude: lat, longitude: lng }, maxDistance);
+
+    return res.json({
+      status: result.isSnapped ? 'SNAPPED' : 'OUT_OF_RANGE',
+      maxDistanceMeters: maxDistance,
+      result,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -111,6 +141,7 @@ router.get('/route', (req, res) => {
       selectionReason: multiRoutes.selectionReason,
       baselineRoute,
       etaImprovementPct: improvement,
+      routingProvider: matcher.routingProvider ? matcher.routingProvider.getProviderName() : 'existing',
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -132,7 +163,10 @@ router.get('/dynamic-route', (req, res) => {
     const destination = { latitude: parseFloat(toLat), longitude: parseFloat(toLng) };
 
     const matcher = getMatcherServices();
-    const multiRoutes = matcher.dijkstraService.findDynamicMultiRoutes(origin, destination);
+    const provider = matcher.routingProvider || matcher.dijkstraService;
+    const multiRoutes = provider.findMultiRoutes
+      ? provider.findMultiRoutes(origin, destination)
+      : matcher.dijkstraService.findDynamicMultiRoutes(origin, destination);
 
     let baselineRoute = null;
     try {
@@ -152,6 +186,9 @@ router.get('/dynamic-route', (req, res) => {
       baselineRoute,
       etaImprovementPct: improvement,
       selectionReason: multiRoutes.selectionReason,
+      routingProvider: multiRoutes.routingProvider || 'existing',
+      graphSource: multiRoutes.graphSource || 'existing_70_node_network',
+      snappingMetadata: multiRoutes.snappingMetadata || null,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -35,6 +35,7 @@ class EtaService {
         : emergencyRequest.pickupLocation;
 
     // ✅ Use Matcher's ETA service
+    const startEta = Date.now();
     try {
       const matcher = getMatcherServices();
       const etaResult = matcher.etaService.calculateETA(
@@ -44,9 +45,27 @@ class EtaService {
         target
       );
 
+      const logger = require('../utils/logger');
+      logger.debug({
+        event: 'ETA_COMPUTED',
+        requestId: emergencyRequest.requestId,
+        ambulanceId: ambulance.id,
+        etaMinutes: etaResult.estimatedMinutes,
+        durationMs: Date.now() - startEta,
+        message: `ETA computed for ${emergencyRequest.requestId}: ${etaResult.estimatedMinutes}m`,
+      });
+
       return etaResult.estimatedMinutes;
     } catch (error) {
-      console.error('[Matcher] ETA error:', error);
+      const logger = require('../utils/logger');
+      logger.warn({
+        event: 'ETA_FALLBACK_COMPUTED',
+        requestId: emergencyRequest?.requestId,
+        ambulanceId: ambulance?.id,
+        error: error.message,
+        durationMs: Date.now() - startEta,
+        message: `Matcher ETA error, falling back to heuristic: ${error.message}`,
+      });
       // Fallback to distance-based ETA
       const distKm = this.distanceKm(ambulance.currentLocation, target);
       const avgSpeedKmh = 30;

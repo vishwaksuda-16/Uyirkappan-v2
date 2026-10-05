@@ -24,7 +24,7 @@ const ambulanceSchema = new mongoose.Schema(
     activeEmergencyId: { type: String, default: null },
     currentAssignmentId: { type: String, default: null },
   },
-  { collection: 'ambulances', timestamps: true }
+  { collection: 'ambulances', timestamps: true, strict: false }
 );
 
 module.exports = mongoose.model('Ambulance', ambulanceSchema);

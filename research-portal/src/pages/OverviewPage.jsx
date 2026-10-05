@@ -14,6 +14,7 @@ const proofItems = [
 
 export default function OverviewPage() {
   const [summary, setSummary] = useState(null);
+  const [baselineMeta, setBaselineMeta] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -21,11 +22,20 @@ export default function OverviewPage() {
       .then((response) => response.json())
       .then((payload) => setSummary(payload.data || null))
       .catch(() => setError('Start the backend to load the latest evaluation summary.'));
+
+    fetch(`${API_BASE}/evaluation/baseline/metadata`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload.success && payload.metadata) {
+          setBaselineMeta(payload.metadata);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const counts = summary?.datasetCounts || {};
   const metrics = [
-    { value: counts.emergencyRequests || '3,000', label: 'Emergency requests', icon: Timer },
+    { value: counts.emergencyRequests || '3,000', label: 'Emergency requests (Chennai)', icon: Timer },
     { value: counts.roadNodes || '70', label: 'Road-network nodes', icon: Network },
     { value: counts.roadSegments || '182', label: 'Road segments', icon: Route },
     { value: summary?.ambulanceMatching?.etaImprovementPct ? `${summary.ambulanceMatching.etaImprovementPct}%` : 'Traffic-aware', label: 'Dispatch comparison', icon: GitCompare },
@@ -56,13 +66,38 @@ export default function OverviewPage() {
           <Database className="research-icon" size={20} />
           <h2>Dataset-backed evaluation</h2>
           <p>Road nodes, segments, traffic conditions, fleet positions, emergency requests, assignments, and GPS trajectories are loaded from the project datasets. The portal presents the measured system behaviour without adding a second source of truth.</p>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', borderRadius: 4, fontWeight: 600 }}>
+              SIMULATION: Chennai 70-Node Network
+            </span>
+            <span style={{ fontSize: 11, padding: '3px 8px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', borderRadius: 4, fontWeight: 600 }}>
+              REFERENCE BASELINE: dummy_ambulance_data.xlsx
+            </span>
+          </div>
           {error && <p style={{ color: 'var(--research-amber)', marginTop: 12 }}>{error}</p>}
         </div>
 
         <div className="research-card">
-          <Map className="research-icon" size={20} />
-          <h2>Visual model</h2>
-          <p>Inspect node-to-node traversal, live traffic weights, trajectory replay, and baseline versus optimized routes.</p>
+          <BarChart3 className="research-icon" size={20} />
+          <h2>108 Reference Baseline</h2>
+          {baselineMeta ? (
+            <div>
+              <p style={{ fontSize: 12, margin: '6px 0' }}>
+                <strong>{baselineMeta.rowCount} historical cases</strong> ({baselineMeta.primaryDistrict} 94%)
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--research-muted)', margin: '4px 0' }}>
+                Mean Response: <strong>{baselineMeta.statistics?.responseTime?.meanMinutes} min</strong> (Median: {baselineMeta.statistics?.responseTime?.medianMinutes} min)
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--research-muted)', margin: '4px 0' }}>
+                Benchmark compliance: <strong>{baselineMeta.statistics?.responseTime?.benchmarkMetPercentage}%</strong>
+              </p>
+              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--research-amber)', fontStyle: 'italic' }}>
+                Reference baseline only; not live fleet or Chennai routing coordinates.
+              </div>
+            </div>
+          ) : (
+            <p>108 historical response sample from dummy_ambulance_data.xlsx (reference benchmark).</p>
+          )}
         </div>
 
         <div className="research-card full">

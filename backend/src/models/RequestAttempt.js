@@ -12,7 +12,7 @@ const requestAttemptSchema = new mongoose.Schema(
     response: { type: String, default: 'PENDING' }, // PENDING | ACCEPTED | REJECTED | TIMEOUT
     failureReason: String,
   },
-  { collection: 'request_attempts', timestamps: true }
+  { collection: 'request_attempts', timestamps: true, strict: false }
 );
 requestAttemptSchema.index({ requestId: 1, attemptNumber: 1 }, { unique: true });
 

@@ -34,10 +34,37 @@ class EmergencyController {
     if (user.role === 'ADMIN' || request.requesterId === user.id) return true;
     if (user.role === 'DRIVER') {
       const amb = await this.store.getAmbulanceByDriverId(user.id);
-      return !!amb && amb.currentRequestId === request.requestId;
+      return !!amb && (amb.currentRequestId === request.requestId || amb.id === request.assignedAmbulanceId);
     }
-    if (user.role === 'HOSPITAL_STAFF') return true;
+    if (user.role === 'HOSPITAL_STAFF') {
+      if (!user.hospitalId || !request.destinationHospitalId) return false;
+      return (
+        user.hospitalId === request.destinationHospitalId ||
+        (user.hospitalId === 'H001' && request.destinationHospitalId === 'HOSP-01') ||
+        (user.hospitalId === 'HOSP-01' && request.destinationHospitalId === 'H001')
+      );
+    }
     return false;
+  }
+
+  async attempts(req, res) {
+    const request = await this.store.getEmergencyByRequestId(req.params.requestId);
+    if (!request) return res.status(404).json({ success: false, message: 'Emergency request not found' });
+    if (!(await this.canAccess(req.user, request))) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this request' });
+    }
+    const attempts = await this.store.getAttemptsByRequestId(request.requestId);
+    return res.json({
+      success: true,
+      attempts: attempts.map((a) => ({
+        attemptNumber: a.attemptNumber,
+        ambulanceId: a.ambulanceId,
+        response: a.response,
+        failureReason: a.failureReason,
+        assignedAt: a.assignedAt,
+        responseAt: a.responseAt,
+      })),
+    });
   }
 
   async get(req, res) {

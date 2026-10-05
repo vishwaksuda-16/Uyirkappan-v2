@@ -3,6 +3,10 @@ const idGen = require('../utils/idGen');
 const { DRIVER_RESPONSE_TIMEOUT_MS } = require('../config/environment');
 const { distanceKm } = require('./memoryStore');
 const { datasetLoader } = require('./datasetLoader');
+const {
+  assertOperationalAmbulanceBoundary,
+  assertOperationalEmergencyBoundary,
+} = require('../config/provenance');
 
 const User = require('../models/User');
 const Ambulance = require('../models/Ambulance');
@@ -29,33 +33,73 @@ class MongoStore {
   async init() {
     await this.seed();
     await this.synchronizeCounters();
+
+    const logger = require('../utils/logger');
+    logger.info({
+      event: 'DATASTORE_INITIALIZED',
+      mode: 'mongodb',
+      message: 'MongoStore initialized and counters synchronized',
+    });
   }
 
   // Keep custom IDs (UK-…, ASSIGN-…) unique across server restarts.
   async synchronizeCounters() {
-    const last = async (Model, field, regex) => {
-      const doc = await Model.findOne({ [field]: regex }).sort({ [field]: -1 }).select(field).lean();
-      return doc ? doc[field] : null;
+    const lastNum = async (Model, field, regex, numRegex) => {
+      const docs = await Model.find({ [field]: regex }).select(field).lean();
+      let max = 0;
+      for (const d of docs) {
+        const val = d[field];
+        if (typeof val === 'string') {
+          const m = val.match(numRegex);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (!isNaN(n) && n > max) max = n;
+          }
+        }
+      }
+      return max;
     };
-    const num = (id, regex) => { const m = id.match(regex); return m ? parseInt(m[1], 10) : 0; };
 
-    let id;
-    if ((id = await last(User, 'id', /^USER-\d+$/))) idGen.setUserIdCounter(num(id, /^USER-(\d+)$/));
-    if ((id = await last(EmergencyRequest, 'requestId', /^UK-\d{4}-\d{6}$/))) idGen.setEmergencyCounter(num(id, /^UK-\d{4}-(\d{6})$/));
-    if ((id = await last(Assignment, 'id', /^ASSIGN-\d+$/))) idGen.setAssignmentCounter(num(id, /^ASSIGN-(\d+)$/));
-    if ((id = await last(Ambulance, 'id', /^AMB-\d+$/))) idGen.setAmbulanceCounter(num(id, /^AMB-(\d+)$/));
-    if ((id = await last(Hospital, 'id', /^HOSP-\d+$/))) idGen.setHospitalCounter(num(id, /^HOSP-(\d+)$/));
-    if ((id = await last(RequestAttempt, 'id', /^ATTEMPT-\d+$/))) idGen.setAttemptCounter(num(id, /^ATTEMPT-(\d+)$/));
-    if ((id = await last(LocationHistory, 'id', /^LOC-\d+$/))) idGen.setLocationCounter(num(id, /^LOC-(\d+)$/));
+    idGen.setUserIdCounter(await lastNum(User, 'id', /^USER-\d+$/, /^USER-(\d+)$/));
+    idGen.setEmergencyCounter(await lastNum(EmergencyRequest, 'requestId', /^UK-\d{4}-\d+$/, /^UK-\d{4}-(\d+)$/));
+    idGen.setAssignmentCounter(await lastNum(Assignment, 'id', /^ASSIGN-\d+$/, /^ASSIGN-(\d+)$/));
+    idGen.setAmbulanceCounter(await lastNum(Ambulance, 'id', /^AMB-\d+$/, /^AMB-(\d+)$/));
+    idGen.setHospitalCounter(await lastNum(Hospital, 'id', /^HOSP-\d+$/, /^HOSP-(\d+)$/));
+    idGen.setAttemptCounter(await lastNum(RequestAttempt, 'id', /^ATTEMPT-\d+$/, /^ATTEMPT-(\d+)$/));
+    idGen.setLocationCounter(await lastNum(LocationHistory, 'id', /^LOC-\d+$/, /^LOC-(\d+)$/));
   }
 
   // ------------------------------------------------------------------- users
   async createUser(user) { return clean(await User.create(user)); }
-  async findUserByEmail(email) { if (!email) return null; return clean(await User.findOne({ email })); }
+  async findUserByEmail(email) {
+    if (!email) return null;
+    const lower = String(email).trim().toLowerCase();
+    const escapeRegex = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    return clean(await User.findOne({ email: { $regex: new RegExp(`^${escapeRegex(lower)}$`, 'i') } }));
+  }
   async findUserByPhone(phone) { if (!phone) return null; return clean(await User.findOne({ phone })); }
-  async findUserById(id) { return clean(await User.findOne({ id })); }
+  async findUserById(id) {
+    if (!id) return null;
+    const lower = String(id).trim().toLowerCase();
+    const escapeRegex = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    return clean(await User.findOne({ id: { $regex: new RegExp(`^${escapeRegex(lower)}$`, 'i') } }));
+  }
   async findUserByEmailOrPhone(email, phone) {
-    if (email) { const u = await this.findUserByEmail(email); if (u) return u; }
+    if (email) {
+      const lower = String(email).trim().toLowerCase();
+      const norm = lower.replace(/-/g, '').replace('@uyirkappan.demo', '');
+      const escapeRegex = (s) => s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      const u = await User.findOne({
+        $or: [
+          { email: { $regex: new RegExp(`^${escapeRegex(lower)}$`, 'i') } },
+          { id: { $regex: new RegExp(`^${escapeRegex(lower)}$`, 'i') } },
+          { id: { $regex: new RegExp(`^${escapeRegex(norm)}$`, 'i') } },
+          { ambulanceId: { $regex: new RegExp(`^${escapeRegex(lower)}$`, 'i') } },
+          { ambulanceId: { $regex: new RegExp(`^${escapeRegex(norm)}$`, 'i') } },
+        ],
+      });
+      if (u) return clean(u);
+    }
     if (phone) return this.findUserByPhone(phone);
     return null;
   }
@@ -89,9 +133,19 @@ class MongoStore {
       currentAssignmentId: null,
     });
   }
-  async updateAmbulanceLocation(id, { latitude, longitude, speed, heading }) {
+  async updateAmbulanceLocation(id, loc) {
+    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, timestamp } = loc || {};
     return this.updateAmbulance(id, {
-      currentLocation: { latitude, longitude },
+      currentLocation: {
+        latitude,
+        longitude,
+        speed: speed ?? 0,
+        heading: heading ?? 0,
+        provider: provider || 'simulation',
+        gpsSource: gpsSource || 'SIMULATION',
+        isSimulated: isSimulated !== undefined ? isSimulated : true,
+        timestamp: timestamp || new Date().toISOString(),
+      },
       currentSpeed: speed ?? 0,
       currentHeading: heading ?? 0,
     });
@@ -111,9 +165,12 @@ class MongoStore {
   async getHospitals() { return (await Hospital.find({}).lean()).map(clean); }
   async getHospitalById(id) { return clean(await Hospital.findOne({ id })); }
   async updateHospitalResources(id, resources) {
+    const h = await this.getHospitalById(id);
+    if (!h) return null;
+    const merged = { ...(h.resources || {}), ...resources };
     return clean(await Hospital.findOneAndUpdate(
       { id },
-      { $set: { resources, updatedAt: new Date() } },
+      { $set: { resources: merged, updatedAt: new Date() } },
       { new: true }
     ));
   }
@@ -130,18 +187,20 @@ class MongoStore {
 
   // ---------------------------------------------------------- emergency requests
   async createEmergencyRequest(requesterId, body) {
-    return clean(await EmergencyRequest.create({
+    const doc = {
+      ...body,
       requestId: idGen.genEmergencyRequestId(),
       requesterId,
       emergencyType: body.emergencyType,
       victimCount: body.victimCount,
-      pickupLocation: body.pickupLocation,
+      pickupLocation: { latitude: body.pickupLocation.latitude, longitude: body.pickupLocation.longitude },
       destinationHospitalId: body.destinationHospitalId || null,
       assignedAmbulanceId: null,
       status: 'SEARCHING',
       currentETA: null,
       completedAt: null,
-    }));
+    };
+    return clean(await EmergencyRequest.create(doc));
   }
   async getEmergencyByRequestId(requestId) { return clean(await EmergencyRequest.findOne({ requestId })); }
   async updateEmergencyRequest(requestId, patch) {
@@ -167,7 +226,6 @@ class MongoStore {
       .sort({ createdAt: -1 }).lean()).map(clean);
   }
 
-  // ---------------------------------------------------------------- assignments
   async createAssignment(request, ambulance, attemptNumber, selection) {
     const now = new Date();
     const id = idGen.genAssignmentId();
@@ -177,10 +235,11 @@ class MongoStore {
       ambulanceId: ambulance.id,
       attemptNumber,
       status: 'PENDING',
-      estimatedETA: selection.estimatedTravelTime,
+      estimatedETA: selection ? selection.estimatedTravelTime : 10,
       assignedAt: now,
       expiresAt: new Date(now.getTime() + this.config.driverResponseTimeoutMs),
       responseAt: null,
+      ...(selection || {}),
     };
     await Assignment.create(assignment);
     await RequestAttempt.create({
@@ -322,34 +381,29 @@ class MongoStore {
         { id: h.id },
         {
           $set: {
-            name: h.name,
+            ...h,
             location: { latitude: h.location.latitude, longitude: h.location.longitude },
-            resources: h.resources,
-            area: h.area,
-            sector: h.sector,
-            traumaCapable: h.traumaCapable,
-            cardiacCapable: h.cardiacCapable,
-            operationalStatus: h.operationalStatus,
           },
         },
         { upsert: true }
       );
     }
 
-    // 3. 131 Fleet Ambulances
+    // 3. 131 Fleet Ambulances with provenance boundary enforcement
     for (const a of datasetLoader.ambulances) {
+      assertOperationalAmbulanceBoundary(a);
       await Ambulance.updateOne(
         { id: a.id },
         {
           $set: {
+            ...a,
             ambulanceNumber: a.ambulanceId,
             driverId: a.driverId,
             currentLocation: { latitude: a.currentLocation.latitude, longitude: a.currentLocation.longitude },
             status: a.status || 'AVAILABLE',
             currentRequestId: null,
-            capabilities: a.capabilities,
-            vehicleType: a.vehicleType,
-            baseId: a.baseId,
+            activeEmergencyId: null,
+            currentAssignmentId: null,
           },
         },
         { upsert: true }

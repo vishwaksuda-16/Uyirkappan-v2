@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:driver_app/app/app.dart';
 import 'package:driver_app/core/config/app_config.dart';
@@ -94,4 +95,49 @@ void main() {
     expect(find.textContaining('driver1'), findsWidgets);
     expect(find.textContaining('driver3'), findsWidgets);
   });
+
+  testWidgets('LoginScreen renders cleanly across multi-screen dimensions without RenderFlex overflow', (tester) async {
+    const config = AppConfig();
+    final storage = MockStorage();
+    final apiService = SimulatedApiService();
+    final socketService = SimulatedSocketService();
+    final locationService = SimulatedLocationService();
+    final simulationEngine = SimulationEngine(socketService: socketService);
+
+    final repository = DriverRepositoryImpl(
+      config: config,
+      apiService: apiService,
+      socketService: socketService,
+      locationService: locationService,
+      storage: storage,
+    );
+
+    final viewports = [
+      const Size(320, 568), // Ultra-compact iPhone SE 1
+      const Size(375, 667), // Compact iPhone 8
+      const Size(390, 844), // Standard iPhone 12/13/14
+      const Size(414, 896), // Large iPhone 11 Pro Max
+      const Size(768, 1024), // Tablet iPad
+    ];
+
+    for (final size in viewports) {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(UyirKappanDriverApp(
+        repository: repository,
+        simulationEngine: simulationEngine,
+      ));
+
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull,
+          reason: 'Failed on viewport: ${size.width}x${size.height}');
+      expect(find.text('UYIRKAPPAN'), findsOneWidget);
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
 }
+

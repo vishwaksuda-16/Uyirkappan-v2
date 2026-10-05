@@ -6,6 +6,7 @@ import '../models/hospital.dart';
 import '../models/location_model.dart';
 import '../models/route_model.dart';
 import '../models/state_enums.dart';
+import '../services/location/location_provider.dart';
 
 abstract class DriverRepository {
   AppConfig get config;
@@ -21,6 +22,8 @@ abstract class DriverRepository {
   Stream<Map<String, dynamic>> get onDemoAssignmentCreated;
   Stream<AmbulanceLocation> get locationStream;
   AmbulanceLocation? get currentLocation;
+  LocationProviderStatus get locationStatus;
+  Stream<LocationProviderStatus> get onLocationStatusChanged;
 
   // Auth & Profile
   Future<Driver> login(String driverId, String password);

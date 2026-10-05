@@ -22,8 +22,16 @@ class HospitalService {
 
   ownsHospital(user, hospitalId) {
     if (!user) return false;
-    // In controlled demo mode, any authenticated hospital staff or admin can manage the selected facility
-    return user.role === 'ADMIN' || user.role === 'HOSPITAL_STAFF';
+    if (user.role === 'ADMIN') return true;
+    if (user.role === 'HOSPITAL_STAFF') {
+      if (!user.hospitalId || !hospitalId) return false;
+      return (
+        user.hospitalId === hospitalId ||
+        (user.hospitalId === 'H001' && hospitalId === 'HOSP-01') ||
+        (user.hospitalId === 'HOSP-01' && hospitalId === 'H001')
+      );
+    }
+    return false;
   }
 
   async incoming(hospitalId, user) {
@@ -79,7 +87,7 @@ class HospitalService {
           hospitalId: r.destinationHospitalId,
           status: r.status,
           createdAt: r.createdAt,
-          completedAt: r.status === 'COMPLETED' ? r.completedAt : null,
+          completedAt: r.status === 'COMPLETED' ? (r.completedAt || r.updatedAt || r.createdAt || new Date().toISOString()) : null,
           driverId: driverInfo?.driverId || null,
           driverName: driverInfo?.driverName || null,
           driverPhone: driverInfo?.driverPhone || null,

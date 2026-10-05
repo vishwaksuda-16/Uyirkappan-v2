@@ -10,7 +10,9 @@
     "prestart": "node scripts/ensure-port.js",
     "start": "node server.js",
     "seed": "node src/seed/seed.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test:phase18": "node --test test/phase18_four_level_testing.test.js",
+    "test:all": "node scripts/run_all_tests.js",
     "matcher": "ts-node src/matcher/index.ts",
     "simulate": "node src/simulation/simulate.js",
     "simulate-ambulance": "node src/simulation/ambulance.simulator.js",
@@ -28,7 +30,8 @@
     "mongoose": "^8.5.1",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",

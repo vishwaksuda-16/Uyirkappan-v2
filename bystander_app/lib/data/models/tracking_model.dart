@@ -17,24 +17,45 @@ class TrackingModel extends TrackingInfo {
     super.vehicleNumber,
     super.driverName,
     super.driverPhone,
+    super.provider,
+    super.gpsSource,
+    super.isSimulated = true,
+    super.accuracy,
   });
 
   factory TrackingModel.fromJson(Map<String, dynamic> json) {
+    DateTime parsedTimestamp = DateTime.now();
+    if (json['timestamp'] != null) {
+      parsedTimestamp = DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now();
+    }
+
+    final provider = json['provider'] as String? ??
+        (json['gpsSource'] == 'DEVICE' ? 'real' : 'simulation');
+    final gpsSource = json['gpsSource'] as String? ??
+        (provider == 'real' ? 'DEVICE' : 'SIMULATION');
+    final isSimulated = json['isSimulated'] != null
+        ? (json['isSimulated'] is bool
+            ? json['isSimulated'] as bool
+            : json['isSimulated'].toString().toLowerCase() == 'true')
+        : (provider != 'real' && gpsSource != 'DEVICE');
+
     return TrackingModel(
       ambulanceId: json['ambulanceId'] as String? ?? 'AMB-UNKNOWN',
       requestId: json['requestId'] as String? ?? '',
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
-      speedKmH: (json['speedKmH'] as num?)?.toDouble(),
-      headingDegrees: (json['headingDegrees'] as num?)?.toDouble(),
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'] as String)
-          : DateTime.now(),
+      speedKmH: (json['speedKmH'] ?? json['speed'] as num?)?.toDouble(),
+      headingDegrees: (json['headingDegrees'] ?? json['heading'] as num?)?.toDouble(),
+      timestamp: parsedTimestamp,
       status: RequestStatus.fromCode(json['status'] as String? ?? 'ASSIGNED'),
       eta: json['eta'] != null ? EtaModel.fromJson(json['eta'] as Map<String, dynamic>) : null,
       vehicleNumber: json['vehicleNumber'] as String?,
       driverName: json['driverName'] as String?,
       driverPhone: json['driverPhone'] as String?,
+      provider: provider,
+      gpsSource: gpsSource,
+      isSimulated: isSimulated,
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
     );
   }
 
@@ -52,6 +73,10 @@ class TrackingModel extends TrackingInfo {
       vehicleNumber: entity.vehicleNumber,
       driverName: entity.driverName,
       driverPhone: entity.driverPhone,
+      provider: entity.provider,
+      gpsSource: entity.gpsSource,
+      isSimulated: entity.isSimulated,
+      accuracy: entity.accuracy,
     );
   }
 
@@ -69,6 +94,10 @@ class TrackingModel extends TrackingInfo {
       if (vehicleNumber != null) 'vehicleNumber': vehicleNumber,
       if (driverName != null) 'driverName': driverName,
       if (driverPhone != null) 'driverPhone': driverPhone,
+      if (provider != null) 'provider': provider,
+      if (gpsSource != null) 'gpsSource': gpsSource,
+      'isSimulated': isSimulated,
+      if (accuracy != null) 'accuracy': accuracy,
     };
   }
 }

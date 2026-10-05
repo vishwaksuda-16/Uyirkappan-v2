@@ -1,18 +1,110 @@
 const { Router } = require('express');
+const authMiddleware = require('../middleware/auth.middleware');
+const { requireRole } = require('../middleware/role.middleware');
 const { datasetLoader } = require('../data/datasetLoader');
+const {
+  DataClassification,
+  DATA_SOURCE_INVENTORY,
+  auditOperationalStatePurity,
+} = require('../config/provenance');
 
 module.exports = function buildSystemRoutes(ctx) {
   const router = Router();
+
+  /**
+   * GET /api/system/health
+   */
+  router.get('/health', async (req, res) => {
+    return res.json({
+      status: 'ok',
+      success: true,
+      dataStoreMode: ctx.store.mode,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  /**
+   * GET /api/system/readiness
+   */
+  router.get('/readiness', async (req, res) => {
+    try {
+      const isDbReady = ctx.store.mode === 'mongodb' ? (ctx.dbState ? ctx.dbState().connected : true) : true;
+      const hospitals = await ctx.store.getHospitals();
+      const ambulances = await ctx.store.getAmbulances();
+      const isReady = isDbReady && hospitals.length > 0 && ambulances.length > 0;
+
+      return res.status(isReady ? 200 : 503).json({
+        status: isReady ? 'ready' : 'degraded',
+        ready: isReady,
+        dataStoreMode: ctx.store.mode,
+        databaseConnected: isDbReady,
+        hospitalCount: hospitals.length,
+        ambulanceCount: ambulances.length,
+        matcherReady: Boolean(ctx.matcher),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      return res.status(503).json({ status: 'not_ready', ready: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/system/provenance
+   * Exposes complete data-source inventory, formal classification taxonomy,
+   * and operational trust boundary verification.
+   */
+  router.get('/provenance', async (req, res) => {
+    try {
+      const purityAudit = await auditOperationalStatePurity(ctx.store);
+      return res.json({
+        success: true,
+        classifications: Object.values(DataClassification),
+        trustBoundary: {
+          operationalPipeline: ['Active emergencies', 'Driver telemetry', 'Hospital bed allocations', 'Real-time assignments'],
+          simulationSources: ['Ambulance fleet (131 Chennai units)', 'TrafficConditions (48 diurnal multipliers)', 'Scenario emergencies'],
+          referenceBaseline: ['dummy_ambulance_data.xlsx (50 Madurai cases)', 'tamil_nadu_108_evaluation.csv'],
+          staticInfrastructure: ['Road network nodes (70)', 'Road network segments (182)', 'Hospital/base facilities (70)', 'GIS KML centerline'],
+        },
+        purityAudit,
+        inventory: DATA_SOURCE_INVENTORY,
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/system/config
+   * Returns sanitized system configuration safe for diagnostics.
+   * All credentials, tokens, and database passwords are redacted.
+   */
+  router.get('/config', (req, res) => {
+    try {
+      const { config } = require('../config');
+      return res.json({
+        success: true,
+        config: config.getSanitized(),
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
   router.get('/data-status', async (req, res) => {
     datasetLoader.loadAll();
 
     const hospitals = await ctx.store.getHospitals();
     const ambulances = await ctx.store.getAmbulances();
+    const purity = await auditOperationalStatePurity(ctx.store);
 
     return res.json({
       success: true,
       dataStoreMode: ctx.store.mode,
+      provenance: {
+        operationalFleetPurity: purity.pure,
+        fleetClassification: DataClassification.SIMULATION,
+        referenceDataIsolated: true,
+      },
       counts: {
         hospitals: datasetLoader.hospitals.length,
         hospitalCapacity: datasetLoader.hospitalCapacity.length,
@@ -111,8 +203,80 @@ module.exports = function buildSystemRoutes(ctx) {
     }
   };
 
-  router.get('/routing-debug', handleRoutingDebug);
   router.post('/routing-debug', handleRoutingDebug);
+
+  router.get('/traffic/status', (req, res) => {
+    const { getTrafficProvider } = require('../services/traffic');
+    const provider = getTrafficProvider();
+    return res.json({
+      success: true,
+      provider: provider.getProviderStatus(),
+    });
+  });
+
+  router.post('/traffic', async (req, res) => {
+    try {
+      const { fromNodeId, toNodeId, state, dayType, hourOfDay } = req.body || {};
+      const { getTrafficProvider } = require('../services/traffic');
+      const provider = getTrafficProvider();
+
+      if (fromNodeId && toNodeId && state) {
+        provider.setTrafficState(fromNodeId, toNodeId, state);
+      }
+      if (dayType && hourOfDay !== undefined) {
+        provider.setTimeContext(dayType, hourOfDay);
+      }
+
+      // If active emergencies exist, recalculate ETA and emit ETA_UPDATED
+      const updatedEmergencies = [];
+      if (ctx.store && ctx.notificationService && ctx.etaService) {
+        let activeReqs = [];
+        if (ctx.store.mode === 'mongodb') {
+          const EmergencyRequest = require('../models/EmergencyRequest');
+          activeReqs = await EmergencyRequest.find({
+            status: { $nin: ['COMPLETED', 'CANCELLED', 'RESOLVED', 'NO_AMBULANCE_AVAILABLE'] },
+            assignedAmbulanceId: { $ne: null },
+          }).lean();
+        } else if (Array.isArray(ctx.store.emergencyRequests)) {
+          activeReqs = ctx.store.emergencyRequests.filter(
+            r => !['COMPLETED', 'CANCELLED', 'RESOLVED', 'NO_AMBULANCE_AVAILABLE'].includes(r.status) && r.assignedAmbulanceId
+          );
+        }
+
+        for (const reqItem of activeReqs) {
+          const amb = await ctx.store.getAmbulanceById(reqItem.assignedAmbulanceId);
+          if (amb) {
+            const newEta = await ctx.etaService.simulateEta(reqItem, amb);
+            await ctx.store.updateEmergencyETA(reqItem.requestId, newEta);
+
+            const etaPayload = {
+              requestId: reqItem.requestId,
+              ambulanceId: amb.id,
+              estimatedMinutes: newEta,
+              currentETA: newEta,
+              trafficState: provider.getTimeOfDayTraffic().state,
+              trafficSource: provider.source,
+              timestamp: new Date().toISOString(),
+            };
+            ctx.notificationService.emitToRoom(`emergency:${reqItem.requestId}`, 'ETA_UPDATED', etaPayload);
+            if (reqItem.destinationHospitalId) {
+              ctx.notificationService.emitToRoom(`hospital:${reqItem.destinationHospitalId}`, 'ETA_UPDATED', etaPayload);
+            }
+            updatedEmergencies.push({ requestId: reqItem.requestId, newEta });
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'Traffic state updated successfully',
+        trafficStatus: provider.getProviderStatus(),
+        recalculatedEmergencies: updatedEmergencies,
+      });
+    } catch (err) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+  });
 
   const handleResetDemo = async (req, res) => {
     try {
@@ -189,8 +353,8 @@ module.exports = function buildSystemRoutes(ctx) {
     }
   };
 
-  router.post('/reset-demo', handleResetDemo);
-  router.post('/reset', handleResetDemo);
+  router.post('/reset-demo', authMiddleware(ctx.store), requireRole('ADMIN', 'HOSPITAL_STAFF'), handleResetDemo);
+  router.post('/reset', authMiddleware(ctx.store), requireRole('ADMIN', 'HOSPITAL_STAFF'), handleResetDemo);
 
   return router;
 };

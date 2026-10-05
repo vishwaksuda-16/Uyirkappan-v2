@@ -19,6 +19,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api';
+
 export default function ExperimentalResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,7 +36,7 @@ export default function ExperimentalResultsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:5000/api/experiments/summary');
+      const res = await fetch(`${API_BASE}/experiments/summary`);
       const json = await res.json();
       if (json.success && json.data) {
         setSummaryData(json.data);
@@ -42,7 +44,7 @@ export default function ExperimentalResultsPage() {
         setError(json.message || 'Failed to load experimental results');
       }
     } catch (err) {
-      setError('Could not connect to backend on port 5000: ' + err.message);
+      setError('Could not connect to backend: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -51,7 +53,7 @@ export default function ExperimentalResultsPage() {
   // Fetch cases list
   const fetchCases = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/experiments/cases?limit=25');
+      const res = await fetch(`${API_BASE}/experiments/cases?limit=25`);
       const json = await res.json();
       if (json.success && json.cases) {
         setCases(json.cases);
@@ -69,7 +71,7 @@ export default function ExperimentalResultsPage() {
     if (!id) return;
     setCaseLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/experiments/case/${id}`);
+      const res = await fetch(`${API_BASE}/experiments/case/${id}`);
       const json = await res.json();
       if (json.success && json.data) {
         setCaseDetails(json.data);

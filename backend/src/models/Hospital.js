@@ -22,7 +22,7 @@ const hospitalSchema = new mongoose.Schema(
       ventilatorsTotal: { type: Number, default: 0 },
     },
   },
-  { collection: 'hospitals', timestamps: true }
+  { collection: 'hospitals', timestamps: true, strict: false }
 );
 
 module.exports = mongoose.model('Hospital', hospitalSchema);

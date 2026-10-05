@@ -8,6 +8,8 @@ import '../../models/hospital.dart';
 import '../../models/state_enums.dart';
 import '../../state/driver_state.dart';
 import '../../state/navigation_state.dart';
+import '../../services/location/location_provider.dart';
+import '../../widgets/common/gps_provenance_badge.dart';
 import '../../widgets/navigation/tactical_map_canvas.dart';
 
 class ActiveNavigationScreen extends StatelessWidget {
@@ -128,14 +130,28 @@ class ActiveNavigationScreen extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Text(
-                        navState.phase == JourneyPhase.enRouteToHospital
-                            ? 'Target: ${navState.destinationName}'
-                            : 'Target Waypoint: ${navState.currentLocation?.nodeName ?? "En Route"}',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                        ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          GpsProvenanceBadge(
+                            isRealGps: navState.locationStatus == LocationProviderStatus.live,
+                            isCompact: true,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              navState.phase == JourneyPhase.enRouteToHospital
+                                  ? 'Target: ${navState.destinationName}'
+                                  : 'Target: ${navState.currentLocation?.nodeName ?? "En Route"}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -172,6 +188,7 @@ class ActiveNavigationScreen extends StatelessWidget {
       ),
     );
   }
+
 
   Widget _buildTrafficBanner(BuildContext context, NavigationState navState) {
     return Container(
@@ -732,7 +749,7 @@ class ActiveNavigationScreen extends StatelessWidget {
                           const Icon(Icons.timer_outlined, color: AppColors.tacticalCyan, size: 16),
                           const SizedBox(width: 8),
                           Text(
-                            'Travel time: $actualEta min',
+                            'Travel time: $actualEta min (Baseline: $baselineEta min, ${savedPct.toStringAsFixed(0)}% faster)',
                             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -743,7 +760,7 @@ class ActiveNavigationScreen extends StatelessWidget {
                           const Icon(Icons.route_outlined, color: AppColors.tacticalCyan, size: 16),
                           const SizedBox(width: 8),
                           Text(
-                            'Distance: ${actualDist.toStringAsFixed(1)} km',
+                            'Distance: ${actualDist.toStringAsFixed(1)} km (Baseline: ${baselineDist.toStringAsFixed(1)} km)',
                             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ],

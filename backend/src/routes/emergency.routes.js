@@ -11,6 +11,7 @@ module.exports = function buildEmergencyRoutes(ctx) {
 
   router.post('/', requireRole('BYSTANDER', 'ADMIN'), (req, res) => ctrl.create(req, res));
   router.get('/:requestId', (req, res) => ctrl.get(req, res));
+  router.get('/:requestId/attempts', (req, res) => ctrl.attempts(req, res));
   router.post('/:requestId/cancel', (req, res) => ctrl.cancel(req, res));
   router.get('/:requestId/tracking', (req, res) => ctrl.tracking(req, res));
 

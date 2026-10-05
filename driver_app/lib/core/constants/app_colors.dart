@@ -3,20 +3,23 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Primary backgrounds - dark tactical theme for optimal day/night emergency operations
-  static const Color background = Color(0xFF0B1120);
+  // Primary backgrounds — dark professional theme
+  static const Color background = Color(0xFF0F172A);
   static const Color surface = Color(0xFF1E293B);
   static const Color surfaceElevated = Color(0xFF273549);
   static const Color cardBorder = Color(0xFF334155);
 
-  // Status indicators (standardized emergency design palette)
-  static const Color statusAvailable = Color(0xFF16A34A); // Green 🟢
-  static const Color statusBusy = Color(0xFFDC2626);      // Emergency Red 🔴
-  static const Color statusOffline = Color(0xFF6B7280);   // Neutral Gray ⚪
-  static const Color emergencyRed = Color(0xFFDC2626);    // Signal Red 🚨
-  static const Color emergencyCrimson = Color(0xFFB91C1C);
+  // Primary brand — Teal (matching bystander app)
+  static const Color primary = Color(0xFF14B8A6);        // Teal 500
+  static const Color primaryDark = Color(0xFF0D9488);    // Teal 600
+  static const Color primaryLight = Color(0xFFCCFBF1);   // Teal 50
 
-  // Tactical navigation & route accents
+  // Status indicators
+  static const Color statusAvailable = Color(0xFF16A34A); // Green
+  static const Color statusBusy = Color(0xFFEF4444);      // Red (only for actual danger)
+  static const Color statusOffline = Color(0xFF6B7280);   // Gray
+
+  // Navigation accents
   static const Color tacticalCyan = Color(0xFF06B6D4);
   static const Color routePolyline = Color(0xFF38BDF8);
   static const Color routeSecondary = Color(0xFF475569);
@@ -31,4 +34,9 @@ class AppColors {
   static const Color infoBlue = Color(0xFF3B82F6);
   static const Color warningOrange = Color(0xFFF59E0B);
   static const Color successGreen = Color(0xFF16A34A);
+  static const Color error = Color(0xFFEF4444);
+
+  // Legacy aliases
+  static const Color emergencyRed = primary;
+  static const Color emergencyCrimson = primaryDark;
 }

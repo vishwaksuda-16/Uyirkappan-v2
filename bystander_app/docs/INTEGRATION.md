@@ -10,7 +10,7 @@ This document defines the integration boundaries, REST API contracts, Socket.IO 
 | Module | Core Responsibility | What It Exchanges with Module 1 |
 | :--- | :--- | :--- |
 | **Module 1 (Bystander App)** | Emergency entry point, GPS capture, category/victim selection, client-side T0 timestamp, live ambulance tracking, and status presentation. | Produces `EmergencyRequest` submission payload; consumes tracking and status streams. |
-| **Backend & Dispatch Engine** | Ambulance candidate scoring (H3 geospatial index, Dijkstra routing, ETA), request persistence, driver assignment, cascading fallback management. | Ingests requests, returns `requestId`, pushes `ASSIGNED`, `ACCEPTED`, or `FALLBACK_TRIGGERED` events. |
+| **Backend & Dispatch Engine** | Ambulance candidate scoring (Haversine spatial radius filtering, Dijkstra routing, ETA), request persistence, driver assignment, cascading fallback management. | Ingests requests, returns `requestId`, pushes `ASSIGNED`, `ACCEPTED`, or `FALLBACK_TRIGGERED` events. |
 | **Driver Application** | Driver accept/reject actions, en-route status transitions. | Triggers `DRIVER_ACCEPTED`, `DRIVER_REJECTED`, `ARRIVED_AT_PATIENT`, `PATIENT_ONBOARD`. |
 | **Live Tracking & ETA (Module 6)** | High-frequency telemetry ingestion, dynamic ETA recalculation, Socket.IO broadcast. | Emits `ambulance:location` (`LOCATION_UPDATED`) and `ambulance:route` (`ETA_UPDATED`) events. |
 | **Hospital Dashboard** | Bed allocation, triage preparation, patient intake confirmation. | Updates request status to `ARRIVED_AT_HOSPITAL` and `COMPLETED`. |
@@ -261,7 +261,7 @@ COMPLETED (Terminal)
 | :--- | :--- | :--- |
 | `CREATED` | Request Created | Client initialized emergency record. |
 | `PENDING` | Request Submitted | Received by server, awaiting dispatch processing. |
-| `SEARCHING` | Locating Nearest Unit | Dispatch engine querying H3 spatial index and candidate scoring. |
+| `SEARCHING` | Locating Nearest Unit | Dispatch engine evaluating spatial radius candidate filtering and multi-factor scoring. |
 | `ASSIGNED` | Ambulance Assigned | Vehicle candidate matched; driver alert dispatched. |
 | `ACCEPTED` | Driver Accepted | Driver confirmed dispatch on Driver App. |
 | `EN_ROUTE_TO_PATIENT` | En Route to Scene | Ambulance actively navigating to patient GPS coordinates. |
@@ -343,7 +343,7 @@ Module 1 features an **Adaptive Architecture** with a one-tap switch in the top 
 You can configure the backend target at compile or run time via `--dart-define`:
 ```bash
 # Connect to custom live backend URL
-flutter run -d chrome --dart-define=API_BASE_URL=https://api.uyirkappan.org --dart-define=IS_SIMULATION=false
+flutter run -d chrome --dart-define=API_BASE_URL=<YOUR_DEPLOYED_BACKEND_URL> --dart-define=IS_SIMULATION=false
 
 # Default development backend (http://localhost:5000)
 flutter run -d chrome

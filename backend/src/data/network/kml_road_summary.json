@@ -1,0 +1,27 @@
+{
+  "pipelineVersion": "1.0.0",
+  "generatedAt": "2026-10-03T05:32:45.972Z",
+  "sourceFile": "1ef735dc-2397-4dc3-88e8-d98ea0b8339b.kml",
+  "sourceFileSizeBytes": 35331745,
+  "preprocessingDurationMs": 979,
+  "statistics": {
+    "totalPlacemarks": 34042,
+    "totalRoadLineStrings": 60382,
+    "totalCoordinates": 741740,
+    "spatialGridCells": 421,
+    "gridCellSizeDeg": 0.01,
+    "boundingBox": {
+      "minLat": 12.85225,
+      "maxLat": 13.2321459,
+      "minLng": 80.1340553,
+      "maxLng": 80.3308454
+    }
+  },
+  "limitations": [
+    "Raw KML contains zero directionality (one-way / two-way) tags",
+    "Raw KML contains zero speed limit attributes",
+    "Raw KML contains zero elevation / layer tags (flyovers cross surface roads geometrically)",
+    "78.61% of LineString endpoints are isolated, preventing unconstrained automatic graph derivation",
+    "Authoritative Dijkstra emergency routing operates over the 70-node / 182-edge graph with KML spatial snapping"
+  ]
+}

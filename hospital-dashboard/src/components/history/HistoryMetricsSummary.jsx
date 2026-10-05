@@ -42,9 +42,9 @@ export function HistoryMetricsSummary({ history = [] }) {
       />
 
       <StatCard
-        title="12-Min Target Attainment"
+        title="Target Response Attainment"
         value="94.2%"
-        subtitle="Golden hour response standard"
+        subtitle="Simulated dispatch benchmark"
         icon={Target}
         variant="info"
       />

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../../core/utils/geo_utils.dart';
 import '../../models/location_model.dart';
 import '../../models/route_model.dart';
+import 'location_provider.dart';
 import 'location_service.dart';
 
 /// Simulated Location Service for offline unit test suites and telemetry verification.
@@ -32,6 +33,13 @@ class SimulatedLocationService implements LocationService {
 
   @override
   bool get isTracking => _isTracking;
+
+  @override
+  LocationProviderStatus get status => LocationProviderStatus.simulation;
+
+  @override
+  Stream<LocationProviderStatus> get statusStream =>
+      Stream.value(LocationProviderStatus.simulation);
 
   bool get isPaused => _isPaused;
   double get currentSpeedKmh => _speedKmh;

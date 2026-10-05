@@ -9,6 +9,7 @@ import '../models/location_model.dart';
 import '../models/route_model.dart';
 import '../models/state_enums.dart';
 import '../services/api/api_service.dart';
+import '../services/location/location_provider.dart';
 import '../services/location/location_service.dart';
 import '../services/socket/socket_service.dart';
 import 'driver_repository.dart';
@@ -79,6 +80,13 @@ class DriverRepositoryImpl implements DriverRepository {
 
   @override
   AmbulanceLocation? get currentLocation => _locationService.currentLocation;
+
+  @override
+  LocationProviderStatus get locationStatus => _locationService.status;
+
+  @override
+  Stream<LocationProviderStatus> get onLocationStatusChanged =>
+      _locationService.statusStream;
 
   @override
   Future<Driver> login(String driverId, String password) async {

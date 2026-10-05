@@ -1,5 +1,4 @@
-# Create .gitignore file
-echo "# Node.js
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -21,7 +20,6 @@ build/
 *.iml
 .idea/
 .vscode/
-*.lock
 
 # React / Vite
 dist/
@@ -63,8 +61,14 @@ hospital-dashboard/dist/
 hospital-dashboard/.vite/
 hospital-dashboard/*.local
 
-# Operating System
+# Research Portal
+research-portal/node_modules/
+research-portal/dist/
+research-portal/.vite/
+research-portal/*.local
+
+# Operating System & Editors
 Thumbs.db
 .DS_Store
 *.swp
-*.swo" > .gitignore
+*.swo

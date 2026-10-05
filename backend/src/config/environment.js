@@ -1,22 +1,22 @@
-const path = require('path');
-
-// Resolve backend/.env from this file so startup works from any working directory.
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
-
-const DATA_STORE_MODE = String(
-  process.env.DATA_STORE_MODE || process.env.DB_DRIVER || 'memory'
-).toLowerCase();
-
-if (!['memory', 'mongodb'].includes(DATA_STORE_MODE)) {
-  throw new Error(`Invalid DATA_STORE_MODE "${DATA_STORE_MODE}" — use "memory" or "mongodb"`);
-}
+/**
+ * Legacy environment export adapter.
+ * Delegates to the authoritative centralized configuration in ./index.js.
+ * Preserves backwards compatibility for all existing callers across the backend.
+ */
+const { config } = require('./index');
 
 module.exports = {
-  PORT: Number(process.env.PORT) || 5000,
-  BASE_URL: process.env.BASE_URL || 'http://localhost:5000',
-  JWT_SECRET: process.env.JWT_SECRET || 'uyirkappan-dev-secret-change-me',
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
-  DATA_STORE_MODE,
-  MONGODB_URI: process.env.MONGODB_URI || process.env.DB_URL || '',
-  DRIVER_RESPONSE_TIMEOUT_MS: Number(process.env.DRIVER_RESPONSE_TIMEOUT_MS) || 60000,
-};
+  PORT: config.server.port,
+  BASE_URL: config.server.baseUrl,
+  JWT_SECRET: config.auth.jwtSecret,
+  JWT_EXPIRES_IN: config.auth.jwtExpiresIn,
+  DATA_STORE_MODE: config.database.mode,
+  MONGODB_URI: config.database.mongoUri,
+  DRIVER_RESPONSE_TIMEOUT_MS: config.auth.driverResponseTimeoutMs,
+  TRAFFIC_PROVIDER: config.traffic.provider,
+  TRAFFIC_PROVIDER_FALLBACK: config.traffic.fallbackProvider,
+  GOOGLE_MAPS_API_KEY: config.traffic.googleMapsApiKey,
+  MAPPLS_CLIENT_ID: config.traffic.mapplsClientId,
+  MAPPLS_CLIENT_SECRET: config.traffic.mapplsClientSecret,
+  ROUTING_GRAPH_SOURCE: config.routing.graphSource,
+};

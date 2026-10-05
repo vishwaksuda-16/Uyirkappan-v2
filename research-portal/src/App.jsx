@@ -9,6 +9,7 @@ import {
   Map,
   Network,
   Radio,
+  ShieldAlert,
 } from 'lucide-react';
 import ExperimentalResultsPage from '../../hospital-dashboard/src/pages/Experiments/ExperimentalResultsPage.jsx';
 import { EvidencePage } from '../../hospital-dashboard/src/pages/Evidence/EvidencePage.jsx';
@@ -18,6 +19,7 @@ import { EvidenceRouteComparison } from '../../hospital-dashboard/src/pages/Evid
 import { EvidenceLiveTracking } from '../../hospital-dashboard/src/pages/Evidence/EvidenceLiveTracking.jsx';
 import { EvidenceFallback } from '../../hospital-dashboard/src/pages/Evidence/EvidenceFallback.jsx';
 import OverviewPage from './pages/OverviewPage.jsx';
+import ProvenanceLimitationsPage from './pages/ProvenanceLimitationsPage.jsx';
 
 const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
@@ -25,6 +27,7 @@ const navItems = [
   { to: '/', label: 'Research overview', icon: BookOpen, end: true },
   { to: '/experiments', label: 'Results & experiments', icon: BarChart3 },
   { to: '/evidence', label: 'Proof catalogue', icon: FlaskConical },
+  { to: '/provenance-limitations', label: 'Provenance & limits', icon: ShieldAlert },
 ];
 
 const visualLinks = [
@@ -46,7 +49,7 @@ function ResearchShell({ children }) {
             <span>Evidence and evaluation workspace</span>
           </div>
         </NavLink>
-        <a className="research-toplink" href="http://localhost:5000/api/health" target="_blank" rel="noreferrer">
+        <a className="research-toplink" href={`${API_ORIGIN}/api/health`} target="_blank" rel="noreferrer">
           Backend health <ExternalLink size={12} />
         </a>
       </header>
@@ -106,6 +109,7 @@ export default function App() {
         <Route path="/evidence/route-comparison" element={<EvidenceRouteComparison />} />
         <Route path="/evidence/live-tracking" element={<EvidenceLiveTracking />} />
         <Route path="/evidence/fallback" element={<EvidenceFallback />} />
+        <Route path="/provenance-limitations" element={<ProvenanceLimitationsPage />} />
       </Routes>
     </ResearchShell>
   );

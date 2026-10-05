@@ -3,6 +3,8 @@
  * real-time events without depending on the socket module directly.
  * Implements Phase 18 duplicate event protection with eventId and sequenceNumber.
  */
+const logger = require('../utils/logger');
+
 class NotificationService {
   constructor(io, store) {
     this.io = io;
@@ -21,12 +23,17 @@ class NotificationService {
     if (!this.io) return;
 
     let finalPayload = payload;
+    let emergencyId = null;
+    let seq = undefined;
+    let eventId = undefined;
+
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      const emergencyId = payload.requestId || payload.emergencyId;
+      emergencyId = payload.requestId || payload.emergencyId;
       if (emergencyId) {
-        const seq = this.nextSequence(emergencyId);
+        seq = this.nextSequence(emergencyId);
+        eventId = `evt-${emergencyId}-${String(seq).padStart(3, '0')}`;
         finalPayload = {
-          eventId: `evt-${emergencyId}-${String(seq).padStart(3, '0')}`,
+          eventId,
           emergencyId,
           timestamp: payload.timestamp || new Date().toISOString(),
           sequenceNumber: seq,
@@ -36,11 +43,32 @@ class NotificationService {
     }
 
     this.io.to(room).emit(event, finalPayload);
+
+    // High frequency telemetry events logged at DEBUG to prevent log flooding (Step 24)
+    const isHighFrequency = event === 'AMBULANCE_LOCATION_UPDATED' || event === 'ETA_UPDATED';
+    logger.log(isHighFrequency ? 'debug' : 'info', {
+      event: 'SOCKET_EVENT_EMITTED',
+      socketEvent: event,
+      room,
+      requestId: emergencyId,
+      emergencyId,
+      eventId,
+      seqNum: seq,
+      ambulanceId: payload?.ambulanceId,
+      status: payload?.status,
+      message: `Socket.IO emitted ${event} to room ${room}${eventId ? ` (${eventId})` : ''}`,
+    });
   }
 
   broadcast(event, payload) {
     if (!this.io) return;
     this.io.emit(event, payload);
+
+    logger.info({
+      event: 'SOCKET_BROADCAST_EMITTED',
+      socketEvent: event,
+      message: `Socket.IO broadcast ${event}`,
+    });
   }
 }
 

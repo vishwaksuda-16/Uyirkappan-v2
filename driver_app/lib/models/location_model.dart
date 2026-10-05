@@ -9,6 +9,10 @@ class AmbulanceLocation {
   final String ambulanceId;
   final String? requestId;
   final String? nodeName;
+  final double? accuracy;
+  final double? altitude;
+  final String? provider;
+  final bool isMock;
 
   const AmbulanceLocation({
     required this.latitude,
@@ -19,6 +23,10 @@ class AmbulanceLocation {
     required this.ambulanceId,
     this.requestId,
     this.nodeName,
+    this.accuracy,
+    this.altitude,
+    this.provider,
+    this.isMock = false,
   });
 
   GeoPoint get toGeoPoint => GeoPoint(latitude, longitude);
@@ -33,6 +41,10 @@ class AmbulanceLocation {
       'ambulanceId': ambulanceId,
       'requestId': requestId,
       'nodeName': nodeName,
+      if (accuracy != null) 'accuracy': accuracy,
+      if (altitude != null) 'altitude': altitude,
+      if (provider != null) 'provider': provider,
+      'isMock': isMock,
     };
   }
 
@@ -46,6 +58,10 @@ class AmbulanceLocation {
       ambulanceId: json['ambulanceId'] as String,
       requestId: json['requestId'] as String?,
       nodeName: json['nodeName'] as String?,
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+      altitude: (json['altitude'] as num?)?.toDouble(),
+      provider: json['provider'] as String?,
+      isMock: json['isMock'] as bool? ?? false,
     );
   }
 }

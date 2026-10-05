@@ -230,6 +230,30 @@ class SocketService {
       });
     }
   }
+
+  /**
+   * Emit a demo fallback trigger event to the backend.
+   * Used by the demo scenario UI to simulate cascading fallback.
+   */
+  triggerFallbackDemo(requestId) {
+    if (!this.socket?.connected) {
+      if (import.meta.env?.DEV) console.warn('Cannot trigger fallback demo: socket not connected');
+      return;
+    }
+    this.socket.emit('TRIGGER_FALLBACK_DEMO', { requestId });
+  }
+
+  /**
+   * Emit a demo incoming emergency trigger event to the backend.
+   * Used by the demo scenario UI to simulate an incoming emergency.
+   */
+  triggerIncomingDemo(emergencyData) {
+    if (!this.socket?.connected) {
+      if (import.meta.env?.DEV) console.warn('Cannot trigger incoming demo: socket not connected');
+      return;
+    }
+    this.socket.emit('TRIGGER_INCOMING_DEMO', emergencyData);
+  }
 }
 
 export const socketService = new SocketService();

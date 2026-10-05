@@ -59,6 +59,13 @@ class FallbackService {
     }
 
     this.stopTimeout(assignmentId);
+    log('warn', {
+      event: 'ASSIGNMENT_TIMEOUT',
+      requestId: assignment.requestId,
+      assignmentId,
+      ambulanceId: assignment.ambulanceId,
+      message: `Driver response timeout on assignment ${assignmentId} for emergency ${assignment.requestId}`,
+    });
     await this.store.recordResponse(
       assignment,
       'TIMEOUT',
@@ -79,6 +86,7 @@ class FallbackService {
   }
 
   async runFallback(failedAssignment) {
+    const fallbackStartTime = Date.now();
     const request = await this.store.getEmergencyByRequestId(
       failedAssignment.requestId
     );
@@ -87,6 +95,14 @@ class FallbackService {
     // ✅ Release the failed ambulance
     await this.store.releaseAmbulance(failedAssignment.ambulanceId);
     await this.store.updateEmergencyStatus(request.requestId, 'FALLBACK');
+
+    log('warn', {
+      event: 'FALLBACK_TRIGGERED',
+      requestId: request.requestId,
+      failedAssignmentId: failedAssignment.id,
+      failedAmbulanceId: failedAssignment.ambulanceId,
+      message: `Cascading fallback triggered for emergency ${request.requestId} on failed ambulance ${failedAssignment.ambulanceId}`,
+    });
 
     const fallbackStartedPayload = {
       requestId: request.requestId,
@@ -120,6 +136,13 @@ class FallbackService {
         request.requestId,
         'NO_AMBULANCE_AVAILABLE'
       );
+      log('warn', {
+        event: 'FALLBACK_EXHAUSTED',
+        requestId: request.requestId,
+        excludedCount: excludedIds.length,
+        durationMs: Date.now() - fallbackStartTime,
+        message: `Cascading fallback exhausted for emergency ${request.requestId}`,
+      });
       this.notificationService.emitToRoom(
         `emergency:${request.requestId}`,
         'STATUS_UPDATED',
@@ -132,7 +155,6 @@ class FallbackService {
           { requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE' }
         );
       }
-      log('info', `No ambulance available for ${request.requestId}`);
       return;
     }
 
@@ -222,10 +244,18 @@ class FallbackService {
     await sendAssignmentToDriver(this, newAssignment);
     this.startTimeout(newAssignment);
 
-    log(
-      'info',
-      `Fallback assigned ${nextAmbulance.id} (attempt ${newAssignment.attemptNumber})`
-    );
+    log('info', {
+      event: 'FALLBACK_REASSIGNED',
+      requestId: request.requestId,
+      assignmentId: newAssignment.id,
+      previousAmbulanceId: failedAssignment.ambulanceId,
+      ambulanceId: nextAmbulance.id,
+      driverId: nextAmbulance.driverId,
+      attemptNumber: newAssignment.attemptNumber,
+      estimatedETA: selection.estimatedTravelTime,
+      durationMs: Date.now() - fallbackStartTime,
+      message: `Cascading fallback reassigned emergency ${request.requestId} to ${nextAmbulance.id} (attempt ${newAssignment.attemptNumber})`,
+    });
   }
 }
 

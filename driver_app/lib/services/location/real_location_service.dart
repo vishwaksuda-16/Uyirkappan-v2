@@ -1,28 +1,117 @@
 import 'dart:async';
-import '../../core/utils/geo_utils.dart';
 import '../../models/location_model.dart';
 import '../../models/route_model.dart';
+import 'gps_quality_filter.dart';
+import 'location_provider.dart';
 import 'location_service.dart';
+import 'real_gps_location_provider.dart';
+import 'simulation_location_provider.dart';
 
-/// Real location service implementation with smooth geometric interpolation
-/// along road-network route waypoints, dynamic speed control, and progressive telemetry.
+/// Real location service orchestrator that integrates hardware GPS, GPS quality filtering,
+/// status observation, and graceful simulation fallback.
 class RealLocationService implements LocationService {
+  final LocationProvider _primaryProvider;
+  final LocationProvider _fallbackProvider;
+  final GpsQualityFilter _qualityFilter;
+  final bool _allowSimulationFallback;
+
+  late LocationProvider _activeProvider;
   final StreamController<AmbulanceLocation> _locationController =
       StreamController<AmbulanceLocation>.broadcast();
-  Timer? _ticker;
+  final StreamController<LocationProviderStatus> _statusController =
+      StreamController<LocationProviderStatus>.broadcast();
+
+  StreamSubscription<RawLocationData>? _providerSub;
+  StreamSubscription<LocationProviderStatus>? _statusSub;
 
   RouteModel? _currentRoute;
   String? _ambulanceId;
   String? _requestId;
-
-  int _currentSegmentIndex = 0;
-  double _segmentProgress = 0.0; // 0.0 to 1.0 within current road segment
-  double _speedKmh = 38.0;
-  double _speedMultiplier = 1.0;
   bool _isTracking = false;
   bool _isPaused = false;
-
   AmbulanceLocation? _currentLocation;
+  RawLocationData? _lastRawFix;
+
+  RealLocationService({
+    LocationProvider? primaryProvider,
+    LocationProvider? fallbackProvider,
+    GpsQualityFilter? qualityFilter,
+    bool allowSimulationFallback = true,
+  })  : _primaryProvider = primaryProvider ?? RealGpsLocationProvider(),
+        _fallbackProvider = fallbackProvider ?? SimulationLocationProvider(),
+        _qualityFilter = qualityFilter ?? const GpsQualityFilter(),
+        _allowSimulationFallback = allowSimulationFallback {
+    _activeProvider = _primaryProvider;
+    _listenToActiveProvider();
+  }
+
+  void _listenToActiveProvider() {
+    _providerSub?.cancel();
+    _statusSub?.cancel();
+
+    _statusSub = _activeProvider.statusStream.listen((newStatus) {
+      _statusController.add(newStatus);
+
+      // Handle automatic graceful fallback if device GPS is denied/disabled
+      if (_allowSimulationFallback &&
+          _activeProvider == _primaryProvider &&
+          (newStatus == LocationProviderStatus.permissionDenied ||
+              newStatus == LocationProviderStatus.permissionDeniedForever ||
+              newStatus == LocationProviderStatus.serviceDisabled ||
+              newStatus == LocationProviderStatus.unavailable)) {
+        _switchToFallback();
+      }
+    });
+
+    _providerSub = _activeProvider.locationStream.listen((raw) {
+      if (_isPaused || !_isTracking) return;
+      _handleRawLocation(raw);
+    });
+  }
+
+  void _switchToFallback() {
+    if (_activeProvider == _fallbackProvider) return;
+    _activeProvider.stop();
+    _activeProvider = _fallbackProvider;
+    final fallback = _fallbackProvider;
+    if (_currentRoute != null && fallback is SimulationLocationProvider) {
+      fallback.setRoute(_currentRoute!);
+    }
+    _listenToActiveProvider();
+    if (_isTracking) {
+      _activeProvider.start();
+    }
+    _statusController.add(LocationProviderStatus.simulation);
+  }
+
+  void _handleRawLocation(RawLocationData raw) {
+    // 1. Run GPS quality filter
+    final evaluation = _qualityFilter.evaluate(_lastRawFix, raw);
+    if (!evaluation.isUsable) {
+      // Drop invalid / impossible jump coordinates
+      return;
+    }
+
+    _lastRawFix = raw;
+
+    // 2. Map normalized RawLocationData to domain AmbulanceLocation
+    final location = AmbulanceLocation(
+      latitude: raw.latitude,
+      longitude: raw.longitude,
+      speed: raw.speed,
+      heading: raw.heading,
+      accuracy: raw.accuracy,
+      altitude: raw.altitude,
+      provider: raw.provider,
+      isMock: raw.isMock,
+      ambulanceId: _ambulanceId ?? 'AMB0001',
+      requestId: _requestId,
+      timestamp: raw.timestamp,
+    );
+
+    _currentLocation = location;
+    _locationController.add(location);
+  }
 
   @override
   Stream<AmbulanceLocation> get locationStream => _locationController.stream;
@@ -33,13 +122,13 @@ class RealLocationService implements LocationService {
   @override
   bool get isTracking => _isTracking;
 
-  bool get isPaused => _isPaused;
-  double get speedMultiplier => _speedMultiplier;
+  @override
+  LocationProviderStatus get status => _activeProvider.status;
 
   @override
-  void setSpeedMultiplier(double multiplier) {
-    _speedMultiplier = multiplier.clamp(0.5, 5.0);
-  }
+  Stream<LocationProviderStatus> get statusStream => _statusController.stream;
+
+  LocationProvider get activeProvider => _activeProvider;
 
   @override
   void startTracking(
@@ -52,144 +141,55 @@ class RealLocationService implements LocationService {
     _currentRoute = route;
     _ambulanceId = ambulanceId;
     _requestId = requestId;
-    _currentSegmentIndex = 0;
-    _segmentProgress = 0.0;
-    _speedKmh = initialSpeedKmh;
     _isTracking = true;
     _isPaused = false;
 
-    if (route.waypoints.isEmpty) return;
-
-    // Initial position emission at start of route
-    final startWp = route.waypoints.first;
-    final nextWp = route.waypoints.length > 1 ? route.waypoints[1] : startWp;
-    final initialBearing = GeoUtils.calculateBearing(startWp.location, nextWp.location);
-
-    _emitLocation(
-      startWp.location.latitude,
-      startWp.location.longitude,
-      _speedKmh,
-      initialBearing,
-      nodeName: startWp.nodeName,
-    );
-
-    // 1-second simulation clock for realistic, smooth visual progress
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!_isTracking || _isPaused || _currentRoute == null) return;
-      _tickMovement();
-    });
-  }
-
-  void _tickMovement() {
-    final route = _currentRoute!;
-    final waypoints = route.waypoints;
-
-    if (waypoints.length < 2 || _currentSegmentIndex >= waypoints.length - 1) {
-      // Arrived at destination waypoint
-      final destWp = waypoints.last;
-      _emitLocation(
-        destWp.location.latitude,
-        destWp.location.longitude,
-        0.0,
-        _currentLocation?.heading ?? 0.0,
-        nodeName: destWp.nodeName,
-      );
-      stopTracking();
-      return;
+    if (_activeProvider is SimulationLocationProvider) {
+      (_activeProvider as SimulationLocationProvider).setRoute(route);
     }
 
-    final p1 = waypoints[_currentSegmentIndex].location;
-    final p2 = waypoints[_currentSegmentIndex + 1].location;
-    final segmentDistanceKm = GeoUtils.distanceKm(p1, p2);
-
-    // Distance covered in 1 second at current speed (km/h) multiplied by simulation speed
-    // distanceKm = (speedKmh / 3600) * multiplier
-    final distanceCoveredThisSec = (_speedKmh / 3600.0) * _speedMultiplier;
-
-    final progressIncrement = segmentDistanceKm > 0.001
-        ? distanceCoveredThisSec / segmentDistanceKm
-        : 1.0;
-
-    _segmentProgress += progressIncrement;
-
-    if (_segmentProgress >= 1.0) {
-      // Advance to next segment
-      _currentSegmentIndex++;
-      _segmentProgress = 0.0;
-
-      if (_currentSegmentIndex >= waypoints.length - 1) {
-        final destWp = waypoints.last;
-        _emitLocation(
-          destWp.location.latitude,
-          destWp.location.longitude,
-          0.0,
-          _currentLocation?.heading ?? 0.0,
-          nodeName: destWp.nodeName,
-        );
-        stopTracking();
-        return;
-      }
-    }
-
-    // Smoothly interpolate coordinate along the road geometry
-    final currentP1 = waypoints[_currentSegmentIndex].location;
-    final currentP2 = waypoints[_currentSegmentIndex + 1].location;
-    final interpolatedPos = GeoUtils.interpolate(currentP1, currentP2, _segmentProgress);
-    final heading = GeoUtils.calculateBearing(currentP1, currentP2);
-    final currentNodeName = waypoints[_currentSegmentIndex].nodeName;
-
-    _emitLocation(
-      interpolatedPos.latitude,
-      interpolatedPos.longitude,
-      _speedKmh * _speedMultiplier,
-      heading,
-      nodeName: currentNodeName,
-    );
-  }
-
-  void _emitLocation(
-    double lat,
-    double lng,
-    double speed,
-    double heading, {
-    String? nodeName,
-  }) {
-    _currentLocation = AmbulanceLocation(
-      ambulanceId: _ambulanceId ?? 'AMB0001',
-      latitude: lat,
-      longitude: lng,
-      speed: speed,
-      heading: heading,
-      timestamp: DateTime.now(),
-      requestId: _requestId,
-      nodeName: nodeName,
-    );
-    _locationController.add(_currentLocation!);
+    _activeProvider.start();
   }
 
   @override
   void updateRoute(RouteModel newRoute) {
     _currentRoute = newRoute;
-    _currentSegmentIndex = 0;
-    _segmentProgress = 0.0;
+    if (_activeProvider is SimulationLocationProvider) {
+      (_activeProvider as SimulationLocationProvider).setRoute(newRoute);
+    }
   }
 
   @override
-  void pauseTracking() => _isPaused = true;
+  void pauseTracking() {
+    _isPaused = true;
+  }
 
   @override
-  void resumeTracking() => _isPaused = false;
+  void resumeTracking() {
+    _isPaused = false;
+  }
 
   @override
   void stopTracking() {
-    _ticker?.cancel();
-    _ticker = null;
     _isTracking = false;
     _isPaused = false;
+    _activeProvider.stop();
+  }
+
+  @override
+  void setSpeedMultiplier(double multiplier) {
+    if (_activeProvider is SimulationLocationProvider) {
+      (_activeProvider as SimulationLocationProvider).setSpeedMultiplier(multiplier);
+    }
   }
 
   void dispose() {
     stopTracking();
+    _providerSub?.cancel();
+    _statusSub?.cancel();
+    _primaryProvider.dispose();
+    _fallbackProvider.dispose();
     _locationController.close();
+    _statusController.close();
   }
 }

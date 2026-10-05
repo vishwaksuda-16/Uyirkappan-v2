@@ -26,7 +26,7 @@ By providing advance notification, live ambulance GPS tracking, dynamic ETA reca
 3. **Dynamic ETA Monitoring**: Authoritative ETA calculated continuously by the central backend, adapting in real time to traffic surges, clear corridors, and vehicle telemetry.
 4. **Hospital Resource Management**: Triage bed and equipment management (`generalBeds`, `icuBeds`, `ventilators`) with optimistic UI updates and live synchronization with Intelligent Dispatch (`PATCH /api/hospitals/:id/resources`).
 5. **Cascading Fallback Visibility**: Automatic handling and audit logging when an assigned ambulance times out or rejects an assignment (e.g. `AMB-03` Timeout -> `AMB-05` Accepted), keeping hospital staff informed without page reloads.
-6. **Emergency Response History**: Searchable and filterable case audit logs with performance analytics measuring the project's **12-minute golden hour response benchmark**.
+6. **Emergency Response History**: Searchable and filterable case audit logs with performance analytics tracking emergency response metrics and dispatch performance.
 
 ---
 
@@ -105,7 +105,7 @@ src/
 
 ### Installation
 ```bash
-cd D:\UyirKappan\hospital-dashboard
+cd hospital-dashboard
 npm install
 ```
 

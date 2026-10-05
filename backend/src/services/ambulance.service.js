@@ -33,15 +33,78 @@ class AmbulanceService {
     if (!this.ownsAmbulance(user, ambulance)) {
       return { ok: false, error: 'FORBIDDEN', message: 'Only the assigned driver or admin can update location', status: 403 };
     }
-    const { latitude, longitude, speed, heading } = body;
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return { ok: false, error: 'BAD_REQUEST', message: 'latitude and longitude are required', status: 400 };
+    const { latitude, longitude, speed, heading, accuracy, timestamp } = body;
+    if (
+      typeof latitude !== 'number' ||
+      typeof longitude !== 'number' ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return {
+        ok: false,
+        error: 'BAD_REQUEST',
+        message: 'Valid latitude (-90 to 90) and longitude (-180 to 180) are required',
+        status: 400,
+      };
     }
 
-    await this.store.updateAmbulanceLocation(ambulanceId, { latitude, longitude, speed, heading });
+    if (timestamp !== undefined && timestamp !== null) {
+      const parsedTime = new Date(timestamp).getTime();
+      if (Number.isNaN(parsedTime)) {
+        return { ok: false, error: 'BAD_REQUEST', message: 'Invalid timestamp format', status: 400 };
+      }
+      // Reject timestamps more than 5 minutes in future
+      if (parsedTime > Date.now() + 5 * 60 * 1000) {
+        return { ok: false, error: 'BAD_REQUEST', message: 'Timestamp cannot be in the future', status: 400 };
+      }
+    }
+
+    const validAccuracy = typeof accuracy === 'number' && Number.isFinite(accuracy) ? accuracy : null;
+    const provider = body.provider || (body.gpsSource === 'DEVICE' ? 'real' : 'simulation');
+    const gpsSource = body.gpsSource || (body.provider === 'real' ? 'DEVICE' : 'SIMULATION');
+    const isSimulated = body.isSimulated !== undefined ? Boolean(body.isSimulated) : (provider === 'real' || gpsSource === 'DEVICE' ? false : true);
+
+    // Stale telemetry observability (Step 13: 45 second threshold)
+    const now = Date.now();
+    const telemetryAgeSec = timestamp ? Math.max(0, Math.round((now - new Date(timestamp).getTime()) / 1000)) : 0;
+    if (telemetryAgeSec >= 45) {
+      log('warn', {
+        event: 'STALE_GPS_DETECTED',
+        ambulanceId,
+        requestId: ambulance.currentRequestId,
+        ageSeconds: telemetryAgeSec,
+        thresholdSeconds: 45,
+        provider,
+        gpsSource,
+        message: `Stale telemetry detected for ${ambulanceId} (${telemetryAgeSec}s age exceeds 45s threshold)`,
+      });
+    }
+
+    await this.store.updateAmbulanceLocation(ambulanceId, {
+      latitude,
+      longitude,
+      speed,
+      heading,
+      provider,
+      gpsSource,
+      isSimulated,
+      accuracy: validAccuracy,
+    });
     await this.store.addLocationHistory({
-      ambulanceId, requestId: ambulance.currentRequestId,
-      latitude, longitude, speed: speed || 0, heading: heading || 0,
+      ambulanceId,
+      requestId: ambulance.currentRequestId,
+      latitude,
+      longitude,
+      speed: speed || 0,
+      heading: heading || 0,
+      accuracy: validAccuracy,
+      provider,
+      gpsSource,
+      isSimulated,
     });
 
     let eta = null;
@@ -57,8 +120,12 @@ class AmbulanceService {
         longitude,
         speed: speed ?? 0,
         heading: heading ?? 0,
+        accuracy: validAccuracy,
+        provider,
+        gpsSource,
+        isSimulated,
         status: ambulance.status,
-        timestamp: new Date().toISOString(),
+        timestamp: timestamp || new Date().toISOString(),
       };
 
       this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'AMBULANCE_LOCATION_UPDATED', locPayload);
@@ -69,7 +136,23 @@ class AmbulanceService {
         requestId: request.requestId, etaMinutes: eta,
       });
     }
-    log('info', `Location updated ${ambulanceId} (${latitude}, ${longitude})`);
+
+    // High frequency telemetry logged at debug level (Step 12 & 24)
+    log('debug', {
+      event: 'GPS_TELEMETRY_RECORDED',
+      ambulanceId,
+      requestId: ambulance.currentRequestId,
+      latitude,
+      longitude,
+      speed: speed || 0,
+      provider,
+      gpsSource,
+      isSimulated,
+      accuracy: validAccuracy,
+      eta,
+      message: `Location updated for ${ambulanceId} (${provider})`,
+    });
+
     return { ok: true, ambulance: await this.store.getAmbulanceById(ambulanceId), eta };
   }
 }

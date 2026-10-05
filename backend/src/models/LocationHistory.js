@@ -9,6 +9,7 @@ const locationHistorySchema = new mongoose.Schema(
     longitude: Number,
     speed: Number,
     heading: Number,
+    accuracy: Number,
     timestamp: { type: Date, default: Date.now },
   },
   { collection: 'location_history', timestamps: true }

@@ -183,5 +183,47 @@ void main() {
       expect(find.text('AMB-CH-023'), findsOneWidget);
       expect(find.text('DESTINATION HOSPITAL'), findsOneWidget);
     });
+
+    testWidgets('Ultra-compact 320x568 viewport renders idle and active screens without RenderFlex overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            emergencyController: emergencyController,
+            locationController: locationController,
+            simulationController: simulationController,
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+      expect(find.text('UyirKappan'), findsOneWidget);
+    });
+
+    testWidgets('Large 414x896 viewport renders cleanly without layout gaps or overflow', (tester) async {
+      tester.view.physicalSize = const Size(414, 896);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            emergencyController: emergencyController,
+            locationController: locationController,
+            simulationController: simulationController,
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull);
+      expect(find.text('REQUEST AMBULANCE'), findsOneWidget);
+    });
   });
 }

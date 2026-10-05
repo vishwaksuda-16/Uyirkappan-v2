@@ -10,8 +10,10 @@ import '../../state/auth_state.dart';
 import '../../state/driver_state.dart';
 import '../../state/navigation_state.dart';
 import '../../widgets/common/connection_badge.dart';
+import '../../widgets/common/gps_provenance_badge.dart';
 import '../../widgets/common/pulsing_radar.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../services/location/location_provider.dart';
 import '../assignment/assignment_received_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -102,6 +104,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          GpsProvenanceBadge(
+            isRealGps: navState.locationStatus == LocationProviderStatus.live,
+            isCompact: true,
+          ),
+          const SizedBox(width: 6),
           ConnectionBadge(status: driverState.connectionStatus),
           const SizedBox(width: 8),
           IconButton(
@@ -208,8 +215,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,6 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 4),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       StatusBadge(availability: driverState.availability),
                     ],
@@ -332,13 +343,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Icon(Icons.warning_amber_rounded, color: AppColors.statusBusy, size: 20),
                   SizedBox(width: 8),
-                  Text(
-                    'AMBULANCE DISPATCHED • BUSY ON MISSION',
-                    style: TextStyle(
-                      color: AppColors.statusBusy,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                  Flexible(
+                    child: Text(
+                      'AMBULANCE DISPATCHED • BUSY ON MISSION',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.statusBusy,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ],
@@ -370,19 +385,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text('🚨 ', style: TextStyle(fontSize: 18)),
-                  Text(
-                    'ACTIVE EMERGENCY: ${assignment.requestId}',
-                    style: const TextStyle(
-                      color: AppColors.emergencyRed,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+                  Flexible(
+                    child: Text(
+                      'ACTIVE EMERGENCY: ${assignment.requestId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.emergencyRed,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                 ],
@@ -419,16 +442,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 14),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _metricBadge(
                 'ETA',
                 '${navState.dynamicEtaMinutes > 0 ? navState.dynamicEtaMinutes : assignment.etaMinutes} min',
                 AppColors.statusAvailable,
               ),
-              const SizedBox(width: 8),
               _metricBadge('Victims', '${emergency.victimCount}', AppColors.tacticalCyan),
-              const SizedBox(width: 8),
               _metricBadge('Speed', '${navState.currentSpeedKmh.round()} km/h', AppColors.textPrimary),
             ],
           ),
@@ -570,10 +593,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFF38bdf8).withValues(alpha: 0.4)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -583,6 +610,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   border: Border.all(color: Colors.amber.shade400, width: 1),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       width: 6,
@@ -625,6 +653,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -701,8 +731,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            alignment: WrapAlignment.spaceBetween,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

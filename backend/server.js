@@ -48,6 +48,7 @@ const { log } = require('./src/utils/logger');
 
   app.use(cors(corsOptions));
   app.use(express.json({ limit: '1mb' }));
+  app.use(require('./src/middleware/correlation.middleware')());
 
   setupSwagger(app); // http://localhost:5000/api-docs
 
@@ -105,22 +106,21 @@ const { log } = require('./src/utils/logger');
   // ✅ Serve static visualization pages from public/
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // ✅ Port conflict auto-recovery (safety net — primary guard is predev/prestart hook)
+  // ✅ Port conflict detection and safe handling
   let portRetried = false;
   server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && !portRetried) {
-      portRetried = true;
-      console.log(`⚠️  Port ${PORT} occupied — auto-killing and retrying...`);
-      try {
-        const { killPort } = require('./scripts/kill-port');
-        killPort(PORT);
-      } catch (_) {}
-      setTimeout(() => server.listen(PORT), 1500);
-      return;
-    }
     if (err.code === 'EADDRINUSE') {
-      console.error(`\n❌ [PORT CONFLICT] Port ${PORT} is still occupied after auto-kill.`);
-      console.error(`   Run: npm run kill-port\n`);
+      if (process.env.NODE_ENV !== 'test' && process.env.AUTO_KILL_ON_CONFLICT === 'true' && !portRetried) {
+        portRetried = true;
+        console.log(`⚠️  Port ${PORT} occupied — auto-killing and retrying...`);
+        try {
+          const { killPort } = require('./scripts/kill-port');
+          killPort(PORT);
+        } catch (_) {}
+        setTimeout(() => server.listen(PORT), 1500);
+        return;
+      }
+      console.error(`\n❌ [PORT CONFLICT] Port ${PORT} is already occupied. Run: npm run kill-port\n`);
       process.exit(1);
     }
     console.error('Server error:', err);

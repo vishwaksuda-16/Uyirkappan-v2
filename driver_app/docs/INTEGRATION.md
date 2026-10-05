@@ -120,10 +120,10 @@ Runtime configuration is managed via `lib/core/config/app_config.dart`. Configur
 | `API_BASE_URL` | Central REST backend URL | `http://localhost:5000/api` |
 | `SOCKET_URL` | Central WebSocket server URL | `http://localhost:5000` |
 
-### Switching to Real Backend
-To switch from simulation mode to the live backend server:
+### Switching to Deployed Backend
+To switch from simulation mode to a deployed backend server:
 ```bash
-flutter run -d chrome --dart-define=APP_MODE=real --dart-define=API_BASE_URL=https://api.uyirkappan.org/api --dart-define=SOCKET_URL=https://api.uyirkappan.org
+flutter run -d chrome --dart-define=APP_MODE=real --dart-define=API_BASE_URL=<YOUR_DEPLOYED_BACKEND_URL>/api --dart-define=SOCKET_URL=<YOUR_DEPLOYED_BACKEND_URL>
 ```
 
 ---

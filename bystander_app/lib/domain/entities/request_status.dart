@@ -55,7 +55,7 @@ enum RequestStatus {
   enRouteToHospital(
     code: 'EN_ROUTE_TO_HOSPITAL',
     userMessage: 'En route to hospital',
-    userDescription: 'Ambulance is navigating along green corridor to destination hospital.',
+    userDescription: 'Ambulance is navigating to destination hospital along optimized route.',
     color: AppColors.statusEnRoute,
     isActive: true,
   ),
@@ -105,6 +105,7 @@ enum RequestStatus {
   /// Section 11: Cancellation is only allowed when status is:
   /// SEARCHING, ASSIGNED, DRIVER_ACCEPTED, EN_ROUTE_TO_PATIENT.
   bool get canCancel =>
+      this == RequestStatus.created ||
       this == RequestStatus.searching ||
       this == RequestStatus.assigned ||
       this == RequestStatus.accepted ||

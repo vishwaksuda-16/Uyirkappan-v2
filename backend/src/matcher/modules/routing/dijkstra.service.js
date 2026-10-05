@@ -386,7 +386,7 @@ class DijkstraService {
      * Baseline shortest-distance route.
      *
      * Selection deliberately ignores congestion (the baseline's policy), but
-     * its ETA is evaluated using the same live traffic as the optimized route.
+     * its ETA is evaluated using the same active simulation traffic as the optimized route.
      * This makes the experiment a like-for-like response-time comparison:
      * shortest distance versus traffic-aware routing, not free-flow versus
      * congested travel.

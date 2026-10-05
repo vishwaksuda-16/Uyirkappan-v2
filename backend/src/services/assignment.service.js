@@ -51,7 +51,25 @@ class AssignmentService {
     this.notificationService.emitToRoom(`emergency:${assignment.requestId}`, 'ETA_UPDATED', {
       requestId: assignment.requestId, etaMinutes: eta,
     });
-    log('info', `${assignment.id} accepted by ${ambulance.id}`);
+    log('info', {
+      event: 'ASSIGNMENT_ACCEPTED',
+      requestId: assignment.requestId,
+      assignmentId,
+      ambulanceId: ambulance.id,
+      driverId: driver.id,
+      eta,
+      message: `Assignment ${assignmentId} accepted by driver ${driver.id} for emergency ${assignment.requestId}`,
+    });
+    log('info', {
+      event: 'LIFECYCLE_TRANSITION',
+      requestId: assignment.requestId,
+      previousState: 'ASSIGNED',
+      newState: 'DRIVER_ACCEPTED',
+      assignmentId,
+      ambulanceId: ambulance.id,
+      actor: driver.id,
+      message: `Emergency ${assignment.requestId} transitioned to DRIVER_ACCEPTED`,
+    });
     return { ok: true, assignment: await this.store.getAssignmentById(assignmentId), eta };
   }
 
@@ -73,7 +91,15 @@ class AssignmentService {
     this.notificationService.emitToRoom(`emergency:${assignment.requestId}`, 'ASSIGNMENT_REJECTED', {
       requestId: assignment.requestId, assignmentId, ambulanceId: ambulance.id, reason: 'rejected',
     });
-    log('info', `${assignment.id} rejected by ${ambulance.id} — starting fallback`);
+    log('warn', {
+      event: 'ASSIGNMENT_REJECTED',
+      requestId: assignment.requestId,
+      assignmentId,
+      ambulanceId: ambulance.id,
+      driverId: driver.id,
+      reason: 'Driver rejected assignment',
+      message: `Assignment ${assignmentId} rejected by driver ${driver.id} — starting fallback`,
+    });
     await this.fallbackService.runFallback(assignment);
     return { ok: true, assignment };
   }
@@ -200,14 +226,32 @@ class AssignmentService {
       }
     }
 
-    log('info', `Status updated to ${nextStatus} for ${assignmentId}`);
+    log('info', {
+      event: 'LIFECYCLE_TRANSITION',
+      requestId: request.requestId,
+      previousState: request.status,
+      newState: nextStatus,
+      assignmentId,
+      ambulanceId: ambulance.id,
+      actor: driver.id,
+      message: `Emergency ${request.requestId} lifecycle transition: ${request.status} -> ${nextStatus}`,
+    });
     return { ok: true, request, status: nextStatus };
   }
 
   async completeRequest(assignment, request, ambulance) {
     await this.store.markCompleted(request.requestId);
     await this.store.transitionAssignmentState(assignment.id, ['ACCEPTED'], 'COMPLETED');
-    await this.store.updateAmbulance(ambulance.id, { status: 'AVAILABLE', currentRequestId: null });
+    if (typeof this.store.releaseAmbulance === 'function') {
+      await this.store.releaseAmbulance(ambulance.id);
+    } else {
+      await this.store.updateAmbulance(ambulance.id, {
+        status: 'AVAILABLE',
+        currentRequestId: null,
+        activeEmergencyId: null,
+        currentAssignmentId: null,
+      });
+    }
 
     this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'AMBULANCE_ARRIVED', {
       requestId: request.requestId, ambulanceId: ambulance.id,
@@ -226,7 +270,24 @@ class AssignmentService {
         requestId: request.requestId, ambulanceId: ambulance.id,
       });
     }
-    log('info', `Emergency ${request.requestId} completed`);
+    log('info', {
+      event: 'LIFECYCLE_TRANSITION',
+      requestId: request.requestId,
+      previousState: request.status,
+      newState: 'COMPLETED',
+      assignmentId: assignment.id,
+      ambulanceId: ambulance.id,
+      hospitalId: request.destinationHospitalId,
+      message: `Emergency ${request.requestId} lifecycle transition: ${request.status} -> COMPLETED`,
+    });
+    log('info', {
+      event: 'EMERGENCY_COMPLETED',
+      requestId: request.requestId,
+      assignmentId: assignment.id,
+      ambulanceId: ambulance.id,
+      hospitalId: request.destinationHospitalId,
+      message: `Emergency ${request.requestId} successfully completed`,
+    });
   }
 }
 

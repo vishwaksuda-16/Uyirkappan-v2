@@ -97,11 +97,29 @@ class EmergencyService {
         debug: debugObject,
       });
     }
-    log('info', `Emergency ${request.requestId} created with source ${source} mapped to road node ${nearestNode.nodeId}`);
 
+    log('info', {
+      event: 'EMERGENCY_CREATED',
+      requestId: request.requestId,
+      emergencyType,
+      victimCount: request.victimCount,
+      destinationHospitalId,
+      source,
+      sourceNodeId: nearestNode.nodeId,
+      pickupLocation,
+      message: `Emergency ${request.requestId} created with source ${source} mapped to road node ${nearestNode.nodeId}`,
+    });
+
+    const dispatchStartTime = Date.now();
     let selection = await this.dispatchService.findBestAmbulance(request, []);
     if (!selection) {
       await this.store.updateEmergencyStatus(request.requestId, 'NO_AMBULANCE_AVAILABLE');
+      log('warn', {
+        event: 'DISPATCH_NO_AMBULANCE',
+        requestId: request.requestId,
+        durationMs: Date.now() - dispatchStartTime,
+        message: `No available ambulance found for emergency ${request.requestId}`,
+      });
       this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'STATUS_UPDATED', {
         requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE',
       });
@@ -252,22 +270,28 @@ class EmergencyService {
     await sendAssignmentToDriver(this.ctx, assignment);
     this.fallbackService.startTimeout(assignment);
 
-    console.log(`\n============================================================`);
-    console.log(`[EMERGENCY] ${request.requestId} CREATED`);
-    console.log(`[LOCATION] Patient: ${pickupLocation.latitude}, ${pickupLocation.longitude}`);
-    if (hospitalMatch) {
-      console.log(`[HOSPITAL MATCH] Selected ${destinationHospitalId} (${hospitalMatch.selectedHospital?.name || 'Hospital'})`);
-      console.log(`   Reason: ${hospitalMatch.selectionReason || 'Optimal weighted score'}`);
-    }
-    console.log(`[AMBULANCE MATCH] Selected ${selection.ambulance.id} (Driver: ${selection.ambulance.driverId || 'Assigned'}, ETA: ${selection.estimatedTravelTime} min)`);
-    console.log(`[ROUTE] Route ${selection.route?.routeId || 'ROUTE-PRIMARY'} selected (Distance: ${selection.route?.distanceKm || selection.distance} km, ETA: ${selection.estimatedTravelTime} min, Cost: ${selection.cost || selection.score})`);
-    console.log(`[DRIVER] Driver for ${selection.ambulance.id} notified`);
-    if (destinationHospitalId) {
-      console.log(`[HOSPITAL] ${destinationHospitalId} received inbound emergency`);
-    }
-    console.log(`============================================================\n`);
+    log('info', {
+      event: 'DISPATCH_COMPLETED',
+      requestId: request.requestId,
+      assignmentId: assignment.id,
+      ambulanceId: selection.ambulance.id,
+      driverId: selection.ambulance.driverId,
+      estimatedETA: selection.estimatedTravelTime,
+      destinationHospitalId: request.destinationHospitalId,
+      score: selection.score,
+      durationMs: Date.now() - dispatchStartTime,
+      message: `Dispatch assigned ${selection.ambulance.id} for emergency ${request.requestId} (ETA: ${selection.estimatedTravelTime}m)`,
+    });
 
-    log('info', `Dispatch selected ${selection.ambulance.id} for ${request.requestId}`);
+    log('info', {
+      event: 'LIFECYCLE_TRANSITION',
+      requestId: request.requestId,
+      previousState: 'CREATED',
+      newState: 'ASSIGNED',
+      assignmentId: assignment.id,
+      ambulanceId: selection.ambulance.id,
+      message: `Emergency ${request.requestId} status updated CREATED -> ASSIGNED`,
+    });
 
     return {
       ok: true,
@@ -310,6 +334,7 @@ class EmergencyService {
       return { ok: false, error: 'CONFLICT', message: `Cannot cancel an emergency in status ${request.status}`, status: 409 };
     }
 
+    const previousStatus = request.status;
     await this.store.updateEmergencyStatus(requestId, 'CANCELLED');
     const active = (await this.store.getAssignmentsForRequest(requestId))
       .filter((a) => ['PENDING', 'ACCEPTED'].includes(a.status));
@@ -320,6 +345,16 @@ class EmergencyService {
     }
     this.notificationService.emitToRoom(`emergency:${requestId}`, 'STATUS_UPDATED', { requestId, status: 'CANCELLED' });
     this.notificationService.emitToRoom(`user:${request.requesterId}`, 'STATUS_UPDATED', { requestId, status: 'CANCELLED' });
+
+    log('info', {
+      event: 'LIFECYCLE_TRANSITION',
+      requestId,
+      previousState: previousStatus,
+      newState: 'CANCELLED',
+      actor: user.id,
+      message: `Emergency ${requestId} cancelled by user ${user.id}`,
+    });
+
     return { ok: true, requestId, status: 'CANCELLED' };
   }
 }

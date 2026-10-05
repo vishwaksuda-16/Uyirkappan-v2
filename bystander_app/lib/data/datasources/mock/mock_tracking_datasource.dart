@@ -269,7 +269,18 @@ class MockTrackingDataSource implements TrackingDataSource {
         socketService!.emitSimulatedEvent('AMBULANCE_LOCATION_UPDATED', {
           'requestId': requestId,
           'ambulanceId': unit.ambulanceId,
-          'location': {'latitude': unit.latitude, 'longitude': unit.longitude},
+          'location': {
+            'latitude': unit.latitude,
+            'longitude': unit.longitude,
+            'provider': 'simulation',
+            'gpsSource': 'SIMULATION',
+            'isSimulated': true,
+            'accuracy': 8.0,
+          },
+          'provider': 'simulation',
+          'gpsSource': 'SIMULATION',
+          'isSimulated': true,
+          'accuracy': 8.0,
           'status': unit.status.code,
         });
 
@@ -329,6 +340,10 @@ class MockTrackingDataSource implements TrackingDataSource {
       vehicleNumber: 'TN-01-AMB-${unit.ambulanceId.replaceAll(RegExp(r'[^0-9]'), '').padLeft(3, '0')}',
       driverName: unit.driverName ?? 'Karthik Raja (Paramedic Lead)',
       driverPhone: unit.driverPhone ?? '+91 98401 23456',
+      provider: 'simulation',
+      gpsSource: 'SIMULATION',
+      isSimulated: true,
+      accuracy: 8.0,
     );
   }
 

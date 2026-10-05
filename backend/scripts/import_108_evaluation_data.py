@@ -7,7 +7,9 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = Path.home() / "Downloads" / "dummy_ambulance_data.xlsx"
+SOURCE = ROOT / "dummy_ambulance_data.xlsx"
+if not SOURCE.exists():
+    SOURCE = Path.home() / "Downloads" / "dummy_ambulance_data.xlsx"
 DESTINATION = ROOT / "Datasets" / "Datasets" / "tamil_nadu_108_evaluation.csv"
 
 def seconds(value):

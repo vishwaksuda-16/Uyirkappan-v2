@@ -15,6 +15,9 @@ class AuthController {
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ success: false, message: `role must be one of ${VALID_ROLES.join(', ')}` });
     }
+    if (role === 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Self-registration as ADMIN is forbidden' });
+    }
     if (!email && !phone) {
       return res.status(400).json({ success: false, message: 'email or phone is required' });
     }

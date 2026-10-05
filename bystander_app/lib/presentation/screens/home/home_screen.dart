@@ -17,7 +17,9 @@ import '../../controllers/simulation_controller.dart';
 import '../../widgets/counter_stepper.dart';
 import '../../widgets/emergency_button.dart';
 import '../../widgets/map/map_style_selector.dart';
+import '../../widgets/gps_provenance_badge.dart';
 import '../../widgets/map/openfreemap_view.dart';
+import '../../widgets/stale_telemetry_banner.dart';
 import '../../widgets/status_badge.dart';
 import '../../../core/utils/map_route_geometry.dart';
 import '../../../main.dart';
@@ -579,8 +581,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showUserProfileModal(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final emailController = TextEditingController(text: 'bystander@uyirkappan.demo');
-    final passController = TextEditingController(text: 'password123');
+    final emailController = TextEditingController();
+    final passController = TextEditingController();
     bool obscurePassword = true;
 
     showModalBottomSheet(
@@ -614,10 +616,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: AppColors.emergencyRed.withValues(alpha: 0.15),
+                                  color: AppColors.primary.withValues(alpha: 0.15),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.person_rounded, color: AppColors.emergencyRed, size: 24),
+                                child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 24),
                               ),
                               const SizedBox(width: 12),
                               Column(
@@ -652,9 +654,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       const Divider(),
                       const SizedBox(height: 10),
                       // Details
-                      _buildProfileInfoRow(Icons.email_outlined, 'Email', user?.email ?? 'bystander@uyirkappan.demo'),
+                      _buildProfileInfoRow(Icons.email_outlined, 'Email', user?.email ?? 'Not logged in'),
                       const SizedBox(height: 8),
-                      _buildProfileInfoRow(Icons.phone_outlined, 'Phone', user?.phone ?? '+91 98401 23456'),
+                      _buildProfileInfoRow(Icons.phone_outlined, 'Phone', user?.phone ?? 'Not set'),
                       const SizedBox(height: 8),
                       _buildProfileInfoRow(
                         Icons.key_rounded,
@@ -662,41 +664,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         auth?.token != null ? 'Bearer ${auth!.token!.substring(0, 18)}... (Active)' : 'Not Set',
                       ),
                       const SizedBox(height: 18),
-                      // 1-Tap Demo Credentials Login
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final success = await auth?.loginDemo() ?? false;
-                            setModalState(() {});
-                            if (ctx.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(success ? '✅ Verified login as bystander@uyirkappan.demo' : 'Login failed'),
-                                  backgroundColor: success ? const Color(0xFF16A34A) : AppColors.emergencyRed,
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.verified_user_rounded, size: 18),
-                          label: const Text('1-TAP LOGIN AS DEMO BYSTANDER'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Custom Credentials
+                      // Custom Credentials Login
                       Material(
                         color: Colors.transparent,
                         child: ExpansionTile(
-                          title: const Text('Custom Login / Register (API)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                          title: const Text('Account Login / Register', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         children: [
                           TextField(
                             controller: emailController,
-                            decoration: const InputDecoration(labelText: 'Email', hintText: 'bystander@uyirkappan.demo'),
+                            decoration: const InputDecoration(labelText: 'Email', hintText: 'Enter your email'),
                           ),
                           const SizedBox(height: 8),
                           TextField(
@@ -704,7 +680,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             obscureText: obscurePassword,
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              hintText: 'password123',
+                              hintText: 'Enter your password',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -724,28 +700,34 @@ class _HomeScreenState extends State<HomeScreen> {
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: () async {
-                                    await auth?.login(
+                                    final ok = await auth?.login(
                                       email: emailController.text.trim(),
                                       password: passController.text,
                                     );
                                     setModalState(() {});
+                                    if (ctx.mounted && (ok == true)) {
+                                      Navigator.pop(ctx);
+                                    }
                                   },
-                                  child: const Text('POST /api/auth/login'),
+                                  child: const Text('Sign In'),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: OutlinedButton(
                                   onPressed: () async {
-                                    await auth?.register(
-                                      name: 'Demo Bystander',
-                                      phone: '+91 98401 23456',
+                                    final ok = await auth?.register(
+                                      name: 'Bystander',
+                                      phone: '+91 98401 00000',
                                       email: emailController.text.trim(),
                                       password: passController.text,
                                     );
                                     setModalState(() {});
+                                    if (ctx.mounted && (ok == true)) {
+                                      Navigator.pop(ctx);
+                                    }
                                   },
-                                  child: const Text('POST /api/auth/register'),
+                                  child: const Text('Register'),
                                 ),
                               ),
                             ],
@@ -2448,6 +2430,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 10),
                     Flexible(child: StatusBadge(status: status)),
+                    const SizedBox(width: 8),
+                    GpsProvenanceBadge(
+                      isRealGps: _currentTelemetry?.isRealGps ?? false,
+                      isStale: _currentTelemetry?.isStale ?? false,
+                      secondsSinceUpdate: _currentTelemetry?.secondsSinceUpdate,
+                      isCompact: true,
+                    ),
                     if (isFallbackActive) ...[
                       const SizedBox(width: 8),
                       Container(
@@ -2579,6 +2568,13 @@ class _HomeScreenState extends State<HomeScreen> {
               Flexible(
                 flex: 3,
                 child: StatusBadge(status: status),
+              ),
+              const SizedBox(width: 10),
+              GpsProvenanceBadge(
+                isRealGps: _currentTelemetry?.isRealGps ?? false,
+                isStale: _currentTelemetry?.isStale ?? false,
+                secondsSinceUpdate: _currentTelemetry?.secondsSinceUpdate,
+                isCompact: true,
               ),
 
               if (isFallbackActive) ...[
@@ -2767,6 +2763,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
 
+          // Stale Telemetry Warning Banner
+          if (_currentTelemetry?.isStale == true) ...[
+            StaleTelemetryBanner(
+              secondsDelayed: _currentTelemetry!.secondsSinceUpdate,
+            ),
+          ],
+
           // ETA & Status Header Row (Bounded flex row with zero overflow)
           Row(
             children: [
@@ -2927,6 +2930,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ),
+
+          // GPS Provenance Telemetry Indicator Row
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              GpsProvenanceBadge(
+                isRealGps: _currentTelemetry?.isRealGps ?? false,
+                isStale: _currentTelemetry?.isStale ?? false,
+                secondsSinceUpdate: _currentTelemetry?.secondsSinceUpdate,
+                isCompact: true,
+              ),
+            ],
           ),
         ],
       ),
@@ -3361,7 +3377,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(Icons.phone_rounded, size: isDesktop ? 16 : 13, color: AppColors.emergencyDarkRed),
                       const SizedBox(width: 4),
                       Text(
-                        'Direct Emergency Helpline',
+                        isDesktop || MediaQuery.of(context).size.width >= 360
+                            ? 'Direct Emergency Helpline'
+                            : '108 Helpline',
                         style: TextStyle(
                           fontSize: isDesktop ? 12 : 10.5,
                           fontWeight: FontWeight.w800,

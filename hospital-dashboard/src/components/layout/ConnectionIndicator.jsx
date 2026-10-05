@@ -24,6 +24,8 @@ export function ConnectionIndicator() {
 
   return (
     <div
+      role="status"
+      aria-label={`Connection status: ${label}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -84,6 +86,7 @@ export function ConnectionIndicator() {
         <button
           onClick={reconnect}
           title="Retry connection"
+          aria-label="Retry WebSocket connection"
           style={{
             color: 'var(--text-muted)',
             display: 'flex',

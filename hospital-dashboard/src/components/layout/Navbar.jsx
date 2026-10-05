@@ -142,6 +142,7 @@ export function Navbar() {
         <button
           onClick={logout}
           title="Sign out of operations dashboard"
+          aria-label="Sign out of operations dashboard"
           style={{
             padding: '8px',
             borderRadius: 'var(--radius-md)',

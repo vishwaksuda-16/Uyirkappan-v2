@@ -7,9 +7,17 @@ class AssignmentController {
   async canAccess(user, assignment) {
     if (user.role === 'ADMIN') return true;
     const ambulance = await this.store.getAmbulanceById(assignment.ambulanceId);
-    if (user.role === 'DRIVER' && ambulance && ambulance.driverId === user.id) return true;
+    if (user.role === 'DRIVER' && ambulance && (ambulance.driverId === user.id || user.ambulanceId === ambulance.id)) return true;
     const request = await this.store.getEmergencyByRequestId(assignment.requestId);
-    return !!(request && request.requesterId === user.id);
+    if (request && request.requesterId === user.id) return true;
+    if (user.role === 'HOSPITAL_STAFF' && request && request.destinationHospitalId && user.hospitalId) {
+      return (
+        user.hospitalId === request.destinationHospitalId ||
+        (user.hospitalId === 'H001' && request.destinationHospitalId === 'HOSP-01') ||
+        (user.hospitalId === 'HOSP-01' && request.destinationHospitalId === 'H001')
+      );
+    }
+    return false;
   }
 
   async get(req, res) {

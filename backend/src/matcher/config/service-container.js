@@ -72,10 +72,20 @@ function createServiceContainer(io) {
      * ==========================================================
      */
     const graphService = (0, virtual_road_network_js_1.createVirtualRoadNetwork)();
-    const trafficService = new traffic_service_js_1.TrafficService();
+    const { getTrafficProvider } = require("../../services/traffic");
+    const trafficService = getTrafficProvider();
     const nearestSegmentService = new NearestSegmentService();
     const dijkstraService = new dijkstra_service_js_1.DijkstraService(graphService, trafficService, nearestSegmentService);
     const nearestNodeService = new nearest_node_service_js_1.NearestNodeService(graphService);
+
+    const { RoutingProviderFactory } = require("../../services/road-network");
+    const { config } = require("../../config");
+    const routingProvider = RoutingProviderFactory.getProvider({
+        source: config?.routing?.graphSource || process.env.ROUTING_GRAPH_SOURCE || 'existing',
+        dijkstraService,
+        graphService,
+        nearestSegmentService,
+    });
     /*
      * ==========================================================
      * ETA
@@ -187,6 +197,7 @@ function createServiceContainer(io) {
         dijkstraService,
         nearestNodeService,
         nearestSegmentService,
+        routingProvider,
         /*
          * --------------------------------------------------------
          * ETA

@@ -133,13 +133,31 @@ class RemoteTrackingDataSource implements TrackingDataSource {
       // Parse nested or flat location
       double lat = 13.0827;
       double lng = 80.2707;
+      String? provider = body['provider'] as String?;
+      String? gpsSource = body['gpsSource'] as String?;
+      bool? isSimulated = body['isSimulated'] is bool ? body['isSimulated'] as bool : null;
+      double? accuracy = (body['accuracy'] as num?)?.toDouble();
+
       if (body['location'] is Map) {
         final loc = body['location'] as Map;
         lat = (loc['latitude'] ?? loc['lat'] ?? 13.0827).toDouble();
         lng = (loc['longitude'] ?? loc['lng'] ?? 80.2707).toDouble();
+        provider ??= loc['provider'] as String?;
+        gpsSource ??= loc['gpsSource'] as String?;
+        if (loc['isSimulated'] is bool) isSimulated ??= loc['isSimulated'] as bool;
+        accuracy ??= (loc['accuracy'] as num?)?.toDouble();
       } else if (body['latitude'] != null && body['longitude'] != null) {
         lat = (body['latitude'] as num).toDouble();
         lng = (body['longitude'] as num).toDouble();
+      }
+
+      provider ??= (gpsSource == 'DEVICE' ? 'real' : 'simulation');
+      gpsSource ??= (provider == 'real' ? 'DEVICE' : 'SIMULATION');
+      isSimulated ??= (provider != 'real' && gpsSource != 'DEVICE');
+
+      DateTime timestamp = DateTime.now();
+      if (body['timestamp'] != null) {
+        timestamp = DateTime.tryParse(body['timestamp'].toString()) ?? DateTime.now();
       }
 
       // Parse ETA
@@ -165,13 +183,18 @@ class RemoteTrackingDataSource implements TrackingDataSource {
         requestId: requestId,
         latitude: lat,
         longitude: lng,
-        timestamp: DateTime.now(),
+        timestamp: timestamp,
         status: RequestStatus.fromCode(statusStr),
         eta: eta,
-        speedKmH: (body['speedKmH'] as num?)?.toDouble() ?? 48.0,
+        speedKmH: (body['speedKmH'] ?? body['speed'] as num?)?.toDouble() ?? 48.0,
+        headingDegrees: (body['headingDegrees'] ?? body['heading'] as num?)?.toDouble(),
         driverName: body['driverName'] as String?,
         driverPhone: body['driverPhone'] as String?,
         vehicleNumber: body['vehicleNumber'] as String?,
+        provider: provider,
+        gpsSource: gpsSource,
+        isSimulated: isSimulated,
+        accuracy: accuracy,
       );
     } catch (_) {
       return null;

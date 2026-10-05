@@ -67,6 +67,7 @@ class DispatchService {
         }
       }
 
+      const dispatchEngineStart = Date.now();
       // Use the dispatch engine service
       const decision = matcher.dispatchEngineService.dispatch(
         matcherRequest,
@@ -102,6 +103,19 @@ class DispatchService {
           ) / 10;
         }
       }
+
+      const logger = require('../utils/logger');
+      logger.info({
+        event: 'DISPATCH_SCORING_COMPLETED',
+        requestId: emergencyRequest.requestId,
+        totalCandidates: matcherAmbulances.length,
+        excludedCount: excludedSet.size,
+        selectedAmbulanceId: decision.selectedAmbulanceId,
+        score: decision.score,
+        scoreBreakdown: decision.scoreBreakdown,
+        durationMs: Date.now() - dispatchEngineStart,
+        message: `Dispatch scoring completed for emergency ${emergencyRequest.requestId} in ${Date.now() - dispatchEngineStart}ms`,
+      });
 
       // ✅ Find the original ambulance in your store
       const selectedAmbulance = allAmbulances.find(

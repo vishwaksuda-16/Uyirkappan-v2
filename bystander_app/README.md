@@ -6,11 +6,11 @@
 [![Material 3](https://img.shields.io/badge/Material_3-High_Contrast_Emergency-6200EE)](https://m3.material.io)
 [![OpenFreeMap](https://img.shields.io/badge/Map-OpenFreeMap_MapLibre_GL-00A86B)](https://openfreemap.org)
 [![Architecture](https://img.shields.io/badge/Architecture-Clean_Architecture-brightgreen)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-30%2F30_Passing-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-46%2F46_Passing-brightgreen)](#testing)
 
 **UyirKappan** is a life-critical emergency medical response platform designed for sub-second incident reporting, automated ambulance dispatch, dynamic driver routing, and hospital coordination.
 
-**Module 1 (Bystander Mobile Application)** provides the primary emergency interface used by bystanders, witnesses, and patients. It supports 1-tap immediate dispatch, GPS location detection, manual pin adjustment, live vehicle tracking, dynamic ETA countdowns, and cascading fallback handling.
+**Module 1 (Bystander Mobile Application)** provides the primary emergency interface used by bystanders, witnesses, and patients. It supports 1-tap immediate dispatch, GPS location detection, manual pin adjustment, live vehicle tracking, dynamic ETA countdowns, GPS provenance disclosures (`● GPS LIVE (REAL)` vs. `○ GPS SIMULATION`), stale telemetry notices, and cascading fallback handling.
 
 ---
 
@@ -133,7 +133,7 @@ flutter run
 # Verify static analysis (0 errors, 0 warnings)
 flutter analyze
 
-# Run unit, controller, and widget test suites (30/30 tests pass)
+# Run unit, controller, and widget test suites (46/46 tests pass)
 flutter test
 ```
 

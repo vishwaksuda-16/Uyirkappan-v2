@@ -6,6 +6,10 @@ const {
   setUserIdCounter, setAmbulanceCounter, setHospitalCounter,
 } = require('../utils/idGen');
 const { DRIVER_RESPONSE_TIMEOUT_MS } = require('../config/environment');
+const {
+  assertOperationalAmbulanceBoundary,
+  assertOperationalEmergencyBoundary,
+} = require('../config/provenance');
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 
@@ -82,9 +86,19 @@ class MemoryStore {
       currentAssignmentId: null,
     });
   }
-  updateAmbulanceLocation(id, { latitude, longitude, speed, heading }) {
+  updateAmbulanceLocation(id, loc) {
+    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, timestamp } = loc || {};
     return this.updateAmbulance(id, {
-      currentLocation: { latitude, longitude },
+      currentLocation: {
+        latitude,
+        longitude,
+        speed: speed ?? 0,
+        heading: heading ?? 0,
+        provider: provider || 'simulation',
+        gpsSource: gpsSource || 'SIMULATION',
+        isSimulated: isSimulated !== undefined ? isSimulated : true,
+        timestamp: timestamp || new Date().toISOString(),
+      },
       currentSpeed: speed ?? 0,
       currentHeading: heading ?? 0,
     });
@@ -311,17 +325,31 @@ class MemoryStore {
       updatedAt: new Date(),
     }));
 
-    // 5. Ingest the 131 fleet ambulances
-    this.ambulances = datasetLoader.ambulances.map(a => ({
-      ...a,
-      ambulanceNumber: a.ambulanceId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
+    // 5. Ingest the 131 fleet ambulances with provenance boundary enforcement
+    this.ambulances = [];
+    for (const a of datasetLoader.ambulances) {
+      assertOperationalAmbulanceBoundary(a);
+      this.ambulances.push({
+        ...a,
+        ambulanceNumber: a.ambulanceId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
 
     setUserIdCounter(this.users.length);
     setHospitalCounter(this.hospitals.length);
     setAmbulanceCounter(this.ambulances.length);
+
+    const logger = require('../utils/logger');
+    logger.info({
+      event: 'DATASTORE_INITIALIZED',
+      mode: 'memory',
+      userCount: this.users.length,
+      hospitalCount: this.hospitals.length,
+      ambulanceCount: this.ambulances.length,
+      message: 'MemoryStore initialized and seeded from authoritative datasets',
+    });
   }
 }
 
