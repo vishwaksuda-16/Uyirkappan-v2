@@ -31,7 +31,7 @@ export function ConnectionIndicator() {
         alignItems: 'center',
         gap: '8px',
         padding: '4px 10px',
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-full)',
         fontSize: '12px',

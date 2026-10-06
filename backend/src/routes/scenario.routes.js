@@ -9,6 +9,7 @@ module.exports = function buildScenarioRoutes(ctx) {
   const notificationService = ctx.notificationService;
   const emergencyService = ctx.emergencyService;
   const fallbackService = ctx.fallbackService;
+  const dispatchService = ctx.dispatchService;
 
   const ensureLoaded = () => {
     if (!datasetLoader.loaded) datasetLoader.loadAll();
@@ -107,6 +108,27 @@ module.exports = function buildScenarioRoutes(ctx) {
       trafficCondition: 'NORMAL',
     },
   ];
+
+  function readPickupLocation(body) {
+    const location = body?.pickupLocation;
+    if (!location ||
+        !Number.isFinite(location.latitude) ||
+        !Number.isFinite(location.longitude) ||
+        location.latitude < -90 ||
+        location.latitude > 90 ||
+        location.longitude < -180 ||
+        location.longitude > 180) {
+      return { error: 'Provide valid numeric pickupLocation latitude and longitude coordinates' };
+    }
+    const point = { latitude: location.latitude, longitude: location.longitude };
+    const projection = getMatcherServices().dijkstraService.nearestSegmentService.findNearestRoadSegment(point);
+    if (projection.distanceToSegmentKm > 2) {
+      return {
+        error: `Pinned location is outside the supported road network (${projection.distanceToSegmentKm} km from mapped roads)`,
+      };
+    }
+    return { point };
+  }
 
   function getEnrichedScenario(def) {
     ensureLoaded();
@@ -252,6 +274,11 @@ module.exports = function buildScenarioRoutes(ctx) {
     try {
       const def = scenarioDefinitions.find(s => s.id === req.params.id || s.number === parseInt(req.params.id, 10));
       if (!def) return res.status(404).json({ success: false, message: 'Scenario not found' });
+      const location = readPickupLocation(req.body);
+      if (!location.point) {
+        return res.status(400).json({ success: false, message: location.error });
+      }
+      const pickupLocation = location.point;
       const scenario = getEnrichedScenario(def);
 
       // System user
@@ -259,19 +286,39 @@ module.exports = function buildScenarioRoutes(ctx) {
       const emergencyResult = await emergencyService.createEmergency(user, {
         emergencyType: scenario.incident.emergencyType || 'ACCIDENT',
         victimCount: scenario.incident.victimCount || 1,
-        pickupLocation: {
-          latitude: scenario.incident.latitude,
-          longitude: scenario.incident.longitude,
-          name: scenario.incident.locationName,
-        },
-        destinationHospitalId: scenario.selectedHospital.hospitalId,
+        pickupLocation: { ...pickupLocation, name: scenario.incident.locationName },
       });
+      if (!emergencyResult.ok) {
+        return res.status(400).json({ success: false, message: emergencyResult.message });
+      }
+      const pinnedScenario = {
+        ...scenario,
+        incident: {
+          ...scenario.incident,
+          locationName: `Pinned location (${pickupLocation.latitude.toFixed(5)}, ${pickupLocation.longitude.toFixed(5)})`,
+          area: 'Pinned location',
+          latitude: pickupLocation.latitude,
+          longitude: pickupLocation.longitude,
+        },
+        candidateAmbulances: emergencyResult.candidates || [],
+        selectedAmbulance: {
+          ambulanceId: emergencyResult.ambulanceId,
+          etaMinutes: emergencyResult.eta,
+          route: emergencyResult.route,
+        },
+        candidateHospitals: emergencyResult.destinationHospitalId
+          ? [{ hospitalId: emergencyResult.destinationHospitalId, route: emergencyResult.hospitalRoute }]
+          : [],
+        selectedHospital: emergencyResult.destinationHospitalId
+          ? { hospitalId: emergencyResult.destinationHospitalId, route: emergencyResult.hospitalRoute }
+          : null,
+      };
 
       return res.json({
         success: true,
         message: `Simulation for Scenario #${scenario.number} launched successfully.`,
         emergency: emergencyResult,
-        scenario,
+        scenario: pinnedScenario,
       });
     } catch (err) {
       return res.status(500).json({ success: false, message: err.message });
@@ -281,19 +328,21 @@ module.exports = function buildScenarioRoutes(ctx) {
   // POST /api/demo/full-demo — executes complete 17-step end-to-end emergency demo
   router.post('/full-demo', async (req, res) => {
     try {
-      const scenario = getEnrichedScenario(scenarioDefinitions[9]); // Scenario 10
+      const location = readPickupLocation(req.body);
+      if (!location.point) {
+        return res.status(400).json({ success: false, message: location.error });
+      }
+      const pickupLocation = location.point;
       const user = { id: 'USER-001', role: 'BYSTANDER' };
 
       const emergency = await emergencyService.createEmergency(user, {
         emergencyType: 'TRAUMA',
         victimCount: 1,
-        pickupLocation: {
-          latitude: scenario.incident.latitude,
-          longitude: scenario.incident.longitude,
-          name: scenario.incident.locationName,
-        },
-        destinationHospitalId: scenario.selectedHospital.hospitalId,
+        pickupLocation: { ...pickupLocation, name: 'Pinned demo location' },
       });
+      if (!emergency.ok) {
+        return res.status(400).json({ success: false, message: emergency.message });
+      }
 
       return res.json({
         success: true,
@@ -313,30 +362,56 @@ module.exports = function buildScenarioRoutes(ctx) {
   router.post('/fallback-demo', async (req, res) => {
     try {
       ensureLoaded();
-      const pLoc = { latitude: 12.952453, longitude: 80.206431 }; // Pallikaranai
-      const sorted = [...datasetLoader.ambulances]
-        .map(a => ({ amb: a, dist: distanceKm(pLoc, a.currentLocation) }))
-        .sort((a, b) => a.dist - b.dist)
-        .slice(0, 4);
-
-      const sequence = [
-        { ambulanceId: sorted[0]?.amb.id || 'AMB0001', driverId: sorted[0]?.amb.driverId, event: 'REJECTED', note: 'Driver declined manual dispatch' },
-        { ambulanceId: sorted[1]?.amb.id || 'AMB0002', driverId: sorted[1]?.amb.driverId, event: 'TIMEOUT', note: '15-second response window expired' },
-        { ambulanceId: sorted[2]?.amb.id || 'AMB0003', driverId: sorted[2]?.amb.driverId, event: 'REJECTED', note: 'Driver busy with shift transition' },
-        { ambulanceId: sorted[3]?.amb.id || 'AMB0004', driverId: sorted[3]?.amb.driverId, event: 'ACCEPTED', note: 'Unit accepted assignment — Navigation active' },
+      const location = readPickupLocation(req.body);
+      if (!location.point) {
+        return res.status(400).json({ success: false, message: location.error });
+      }
+      const pLoc = location.point;
+      const sequence = [];
+      const excludedAmbulanceIds = [];
+      const outcomes = [
+        { event: 'REJECTED', note: 'Driver declined manual dispatch' },
+        { event: 'TIMEOUT', note: 'Response window expired' },
+        { event: 'REJECTED', note: 'Driver declined the reassigned request' },
+        { event: 'ACCEPTED', note: 'Unit accepted assignment — Navigation active' },
       ];
+      for (const outcome of outcomes) {
+        const selection = await dispatchService.findBestAmbulance({
+          requestId: 'UK-DEMO-FALLBACK',
+          emergencyType: 'TRAUMA',
+          victimCount: 1,
+          pickupLocation: pLoc,
+        }, excludedAmbulanceIds);
+        if (!selection) break;
+        excludedAmbulanceIds.push(selection.ambulance.id);
+        sequence.push({
+          ambulanceId: selection.ambulance.id,
+          driverId: selection.ambulance.driverId,
+          event: outcome.event,
+          note: outcome.note,
+          distanceKm: selection.distance,
+          etaMinutes: selection.estimatedTravelTime,
+          route: selection.route,
+        });
+      }
+      if (sequence.length === 0) {
+        return res.status(409).json({ success: false, message: 'No eligible ambulance can reach the selected location' });
+      }
+      sequence[sequence.length - 1].event = 'ACCEPTED';
+      sequence[sequence.length - 1].note = 'Best remaining unit accepted assignment — Navigation active';
 
       // Emit live updates to hospital room
       notificationService.broadcast('CASCADING_FALLBACK_DEMO', {
         requestId: 'UK-DEMO-FALLBACK',
+        pickupLocation: pLoc,
         steps: sequence,
-        finalAmbulanceId: sequence[3].ambulanceId,
+        finalAmbulanceId: sequence[sequence.length - 1].ambulanceId,
         status: 'ACCEPTED',
       });
 
       return res.json({
         success: true,
-        message: 'Cascading fallback sequence executed.',
+        message: `Location-based cascading fallback sequence executed for ${sequence.length} eligible ambulances.`,
         sequence,
       });
     } catch (err) {

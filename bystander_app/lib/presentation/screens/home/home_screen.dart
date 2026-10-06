@@ -64,6 +64,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _topBannerTimer;
   bool _isDispatching = false;
 
+  String _formatPickupCoordinates(LocationData? location) {
+    if (location == null) return 'Tap the map or choose a pickup point';
+    final latHemisphere = location.latitude >= 0 ? 'N' : 'S';
+    final lngHemisphere = location.longitude >= 0 ? 'E' : 'W';
+    return '${location.latitude.abs().toStringAsFixed(5)}° $latHemisphere, '
+        '${location.longitude.abs().toStringAsFixed(5)}° $lngHemisphere';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final activeRequest = widget.emergencyController.activeRequest;
     if (activeRequest != null && activeRequest.status.isActive && widget.trackingRepository != null) {
       if (_lastSubscribedRequestId != activeRequest.requestId) {
+        _currentTelemetry = null;
         _lastSubscribedRequestId = activeRequest.requestId;
         _trackingSubscription?.cancel();
         _trackingSubscription = widget.trackingRepository!
@@ -139,6 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } else {
+      _currentTelemetry = null;
       if (_lastSubscribedRequestId != null) {
         _lastSubscribedRequestId = null;
         _trackingSubscription?.cancel();
@@ -168,15 +178,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _dispatchAmbulance() async {
     if (_isDispatching) return;
+    final loc = widget.locationController.emergencyLocation;
+    if (loc == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set the incident pickup pin or wait for a GPS fix before dispatching.'),
+          backgroundColor: AppColors.emergencyRed,
+        ),
+      );
+      return;
+    }
     setState(() => _isDispatching = true);
 
     OpenFreeMapView.suppressClicks();
-    final loc = widget.locationController.emergencyLocation ??
-        LocationData(
-          latitude: MapConstants.defaultLatitude,
-          longitude: MapConstants.defaultLongitude,
-          timestamp: DateTime.now(),
-        );
 
     // Show immediate user feedback
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -353,14 +367,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.distanceKmList.isNotEmpty ? '${routes.distanceKmList.first.toStringAsFixed(1)} km' : '${routes.distanceKmList.isEmpty ? 4.2 : routes.distanceKmList.first} km',
+                              routes.distanceKmList.isNotEmpty ? '${routes.distanceKmList.first.toStringAsFixed(1)} km' : '--',
                               style: const TextStyle(color: Colors.white, fontSize: 12),
                             ),
                           ),
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.etaMinutesList.isNotEmpty ? '${routes.etaMinutesList.first} min' : '${routes.etaMinutesList.isEmpty ? 8 : routes.etaMinutesList.first} min',
+                              routes.etaMinutesList.isNotEmpty ? '${routes.etaMinutesList.first} min' : '--',
                               style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
@@ -382,14 +396,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.distanceKmList.length > 1 ? '${routes.distanceKmList[1].toStringAsFixed(1)} km' : '5.1 km',
+                              routes.distanceKmList.length > 1 ? '${routes.distanceKmList[1].toStringAsFixed(1)} km' : '--',
                               style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                             ),
                           ),
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.etaMinutesList.length > 1 ? '${routes.etaMinutesList[1]} min' : '11 min',
+                              routes.etaMinutesList.length > 1 ? '${routes.etaMinutesList[1]} min' : '--',
                               style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
                             ),
                           ),
@@ -411,14 +425,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.distanceKmList.length > 2 ? '${routes.distanceKmList[2].toStringAsFixed(1)} km' : '5.7 km',
+                              routes.distanceKmList.length > 2 ? '${routes.distanceKmList[2].toStringAsFixed(1)} km' : '--',
                               style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                             ),
                           ),
                           Expanded(
                             flex: 2,
                             child: Text(
-                              routes.etaMinutesList.length > 2 ? '${routes.etaMinutesList[2]} min' : '13 min',
+                              routes.etaMinutesList.length > 2 ? '${routes.etaMinutesList[2]} min' : '--',
                               style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
                             ),
                           ),
@@ -965,7 +979,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showVoiceAssistanceModal() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final loc = widget.locationController.currentLocation;
+    final loc = widget.locationController.emergencyLocation;
+    if (loc == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set the incident pickup pin or wait for a GPS fix before dispatching.'),
+          backgroundColor: AppColors.emergencyRed,
+        ),
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -1162,16 +1185,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Direct binding to Authoritative Dynamic Route from backend
-    if (activeRequest.backendRoute != null && activeRequest.backendRoute!.length > 1) {
-      final List<List<LocationData>> alts = activeRequest.backendAlternativeRoutes ?? const [];
+    final isHospitalLeg = activeRequest.status == RequestStatus.patientOnboard ||
+        activeRequest.status == RequestStatus.enRouteToHospital ||
+        activeRequest.status == RequestStatus.arrivedAtHospital;
+    final requestRoute = isHospitalLeg
+        ? activeRequest.backendHospitalRoute ?? activeRequest.backendRoute
+        : activeRequest.backendRoute;
+    if (requestRoute != null && requestRoute.length > 1) {
+      final List<List<LocationData>> alts = isHospitalLeg
+          ? const []
+          : activeRequest.backendAlternativeRoutes ?? const [];
       final List<String> labels = [];
       if (alts.isNotEmpty) {
-        labels.add('Alternative Route (Graph Corridor)');
+        labels.addAll(List.generate(alts.length, (index) => 'Alternative Route ${index + 1}'));
       }
       return MultiRouteCandidates(
-        primaryRoute: activeRequest.backendRoute!,
+        primaryRoute: requestRoute,
         alternativeRoutes: alts,
         alternativeLabels: labels,
+        distanceKmList: _currentTelemetry?.eta?.distanceMeters == null
+            ? const []
+            : [_currentTelemetry!.eta!.distanceMeters! / 1000],
+        etaMinutesList: _currentTelemetry?.eta != null
+            ? [_currentTelemetry!.eta!.estimatedMinutes]
+            : activeRequest.currentETA == null
+                ? const []
+                : [activeRequest.currentETA!],
       );
     }
 
@@ -1216,14 +1255,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isNoAmbulanceAvailable = activeRequest != null && activeRequest.status == RequestStatus.noAmbulanceAvailable;
     final bool hasActiveRequest = (activeRequest != null && activeRequest.status.isActive) || isNoAmbulanceAvailable;
     final bool isAmbulanceAssigned = activeRequest != null &&
-        activeRequest.status.isActive &&
-        activeRequest.assignedAmbulanceId != null &&
-        activeRequest.status != RequestStatus.searching &&
-        activeRequest.status != RequestStatus.created;
+        activeRequest.status.hasConfirmedDriver &&
+        activeRequest.assignedAmbulanceId != null;
 
     // Determine target location for pinpoint / tracking
     final LocationData? incidentLocation = activeRequest?.emergencyLocation ?? widget.locationController.emergencyLocation;
-    final LocationData? ambulanceLocation = (hasActiveRequest && !isNoAmbulanceAvailable && _currentTelemetry != null)
+    final LocationData? ambulanceLocation = (isAmbulanceAssigned && _currentTelemetry != null)
         ? LocationData(
             latitude: _currentTelemetry!.latitude,
             longitude: _currentTelemetry!.longitude,
@@ -1236,8 +1273,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // Emergency Network POIs: Hospitals & Standby Ambulances around current location
     final double centerLat = incidentLocation?.latitude ?? MapConstants.defaultLatitude;
     final double centerLng = incidentLocation?.longitude ?? MapConstants.defaultLongitude;
-    final hospitals = NearbyEmergencyService.getHospitalsAround(centerLat, centerLng);
-    final standbyAmbulances = NearbyEmergencyService.getStandbyAmbulancesAround(centerLat, centerLng);
+    final hospitals = incidentLocation == null
+        ? <NearbyHospital>[]
+        : NearbyEmergencyService.getHospitalsAround(centerLat, centerLng);
+    final standbyAmbulances = incidentLocation == null
+        ? <NearbyAmbulance>[]
+        : NearbyEmergencyService.getStandbyAmbulancesAround(centerLat, centerLng);
 
     // Identify assigned hospital (using dynamic backend destination or nearest hospital)
     NearbyHospital? assignedHospital;
@@ -1252,7 +1293,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Visibility filtering:
     // When ambulance is assigned: hide all other standby ambulances & other hospitals. Focus strictly on assigned unit and hospital.
     // When no ambulance is available: show only the nearest hospital for self-transport.
-    final List<NearbyAmbulance> visibleAmbulances = (isAmbulanceAssigned || isNoAmbulanceAvailable)
+    final bool isWaitingForDriver = activeRequest?.status == RequestStatus.assigned;
+    final List<NearbyAmbulance> visibleAmbulances =
+        (isAmbulanceAssigned || isNoAmbulanceAvailable || isWaitingForDriver)
         ? const <NearbyAmbulance>[]
         : (_showAmbulances ? standbyAmbulances : const <NearbyAmbulance>[]);
 
@@ -1276,12 +1319,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 1. FULL-SCREEN BACKGROUND: OpenFreeMap MapLibre GL JS Vector Map
           Positioned.fill(
             child: OpenFreeMapView(
-              incidentLocation: incidentLocation ??
-                  LocationData(
-                    latitude: MapConstants.defaultLatitude,
-                    longitude: MapConstants.defaultLongitude,
-                    timestamp: DateTime.now(),
-                  ),
+              incidentLocation: incidentLocation,
               ambulanceLocation: ambulanceLocation,
               heading: _currentTelemetry?.headingDegrees,
               ambulanceId: ambulanceId,
@@ -1290,7 +1328,9 @@ class _HomeScreenState extends State<HomeScreen> {
               alternativeLabels: activeMultiRoute?.alternativeLabels,
               style: _selectedMapStyle,
               isPickerMode: !_isPinLocked && !hasActiveRequest,
-              showSearchRadar: activeRequest != null && activeRequest.status == RequestStatus.searching,
+              showSearchRadar: activeRequest != null &&
+                  (activeRequest.status == RequestStatus.searching ||
+                      activeRequest.status == RequestStatus.assigned),
               recenterTrigger: _recenterCounter,
               nearbyHospitals: visibleHospitals,
               nearbyAmbulances: visibleAmbulances,
@@ -2024,7 +2064,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                loc?.address ?? '${loc?.latitude.toStringAsFixed(4) ?? "13.0827"}° N, ${loc?.longitude.toStringAsFixed(4) ?? "80.2707"}° E',
+                                loc?.address ??
+                                    (loc != null
+                                        ? '${loc.latitude.toStringAsFixed(4)}° N, ${loc.longitude.toStringAsFixed(4)}° E'
+                                        : 'Choose the incident pickup point'),
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -2161,7 +2204,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Text(
                                   _isPinLocked
                                       ? 'LOCATION LOCKED'
-                                      : (loc?.isManualOverride == true ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)'),
+                                      : (loc == null
+                                          ? 'PICKUP LOCATION REQUIRED'
+                                          : (loc.isManualOverride ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)')),
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w900,
@@ -2177,10 +2222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              loc?.address ??
-                                  (loc != null
-                                      ? '${loc.latitude.toStringAsFixed(4)}° N, ${loc.longitude.toStringAsFixed(4)}° E'
-                                      : '13.0827° N, 80.2707° E (Chennai Central Corridor)'),
+                              _formatPickupCoordinates(loc),
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -2369,11 +2411,15 @@ class _HomeScreenState extends State<HomeScreen> {
     ThemeData theme,
     bool isDark,
   ) {
+    if (!request.status.hasConfirmedDriver) {
+      return _buildFindingDriverPanel(request, assignedHospital, theme, isDark, true);
+    }
+
     final status = request.status;
     final isFallbackActive = request.fallbackCount > 0 && status == RequestStatus.searching;
-    final etaMinutes = _currentTelemetry?.eta?.estimatedMinutes ?? request.currentETA ?? 5;
-    final etaFormatted = 'ETA: $etaMinutes minutes';
-    final ambulanceId = _currentTelemetry?.ambulanceId ?? request.assignedAmbulanceId ?? 'AMB-CH-042';
+    final etaMinutes = _currentTelemetry?.eta?.estimatedMinutes ?? request.currentETA;
+    final etaFormatted = etaMinutes == null ? 'ETA unavailable' : 'ETA: $etaMinutes minutes';
+    final ambulanceId = _currentTelemetry?.ambulanceId ?? request.assignedAmbulanceId ?? 'Ambulance';
 
     return Container(
       key: const ValueKey('desktop_active_tracking_dock'),
@@ -2500,7 +2546,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '• Driver: ${request.assignedDriverName ?? "Suresh Kumar"}',
+                      '• Driver: ${request.assignedDriverName ?? "Driver details pending"}',
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryLight, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(width: 12),
@@ -2634,7 +2680,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900),
                       ),
                       Text(
-                        'Driver: ${request.assignedDriverName ?? "Suresh Kumar"}',
+                        'Driver: ${request.assignedDriverName ?? "Driver details pending"}',
                         style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondaryLight, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -2715,10 +2761,14 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isDark, [
     bool isDesktop = false,
   ]) {
+    if (!request.status.hasConfirmedDriver) {
+      return _buildFindingDriverPanel(request, assignedHospital, theme, isDark, isDesktop);
+    }
+
     final status = request.status;
     final isFallbackActive = request.fallbackCount > 0 && status == RequestStatus.searching;
-    final etaMinutes = _currentTelemetry?.eta?.estimatedMinutes ?? request.currentETA ?? 5;
-    final ambulanceId = _currentTelemetry?.ambulanceId ?? request.assignedAmbulanceId ?? 'AMB-CH-042';
+    final etaMinutes = _currentTelemetry?.eta?.estimatedMinutes ?? request.currentETA;
+    final ambulanceId = _currentTelemetry?.ambulanceId ?? request.assignedAmbulanceId ?? 'Ambulance';
 
     return Container(
       key: const ValueKey('active_tracking_sheet'),
@@ -2785,7 +2835,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icon(Icons.timer_rounded, color: Colors.white, size: isDesktop ? 16 : 14),
                     const SizedBox(width: 4),
                     Text(
-                      'ETA: $etaMinutes min',
+                      etaMinutes == null ? 'ETA: --' : 'ETA: $etaMinutes min',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: isDesktop ? 13 : 11.5,
@@ -2855,7 +2905,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'Driver: ${request.assignedDriverName ?? "Suresh Kumar"} • Unit in Focus',
+                      'Driver: ${request.assignedDriverName ?? "Driver details pending"} • Unit in Focus',
                       style: TextStyle(fontSize: isDesktop ? 13 : 12, color: AppColors.textSecondaryLight, fontWeight: FontWeight.w500),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2944,6 +2994,112 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFindingDriverPanel(
+    EmergencyRequest request,
+    NearbyHospital? assignedHospital,
+    ThemeData theme,
+    bool isDark,
+    bool isDesktop,
+  ) {
+    return Container(
+      key: const ValueKey('finding_driver_panel'),
+      padding: EdgeInsets.all(isDesktop ? 22 : 18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isDesktop)
+            Row(
+              children: [
+                const Icon(Icons.radar_rounded, color: AppColors.statusSearching),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    request.status.userMessage,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                StatusBadge(status: request.status),
+              ],
+            )
+          else ...[
+            Row(
+              children: [
+                const Icon(Icons.radar_rounded, color: AppColors.statusSearching),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: StatusBadge(status: request.status),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              request.status.userMessage,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            request.status.userDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondaryLight,
+            ),
+          ),
+          const SizedBox(height: 14),
+          LinearProgressIndicator(
+            color: AppColors.statusSearching,
+            backgroundColor: AppColors.statusSearching.withValues(alpha: 0.15),
+          ),
+          if (assignedHospital != null || request.hospitalDestination != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'DESTINATION HOSPITAL',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: AppColors.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              assignedHospital?.name ?? request.hospitalDestination!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          if (request.status.canCancel) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _showCancelDialog,
+                child: const Text('CANCEL'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -3451,7 +3607,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ? 'LOCATION LOCKED'
                                     : (widget.locationController.status == LocationFetchStatus.loading
                                         ? 'LOCATING YOU...'
-                                        : (loc?.isManualOverride == true ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)')),
+                                        : (loc == null
+                                            ? 'PICKUP LOCATION REQUIRED'
+                                            : (loc.isManualOverride ? 'MANUAL PINPOINT' : 'GPS POSITION (DETECTED)'))),
                                 style: TextStyle(
                                   fontSize: isDesktop ? 11.5 : 9.5,
                                   fontWeight: FontWeight.w900,
@@ -3471,10 +3629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          loc?.address ??
-                              (loc != null
-                                  ? '${loc.latitude.toStringAsFixed(4)}° N, ${loc.longitude.toStringAsFixed(4)}° E'
-                                  : '13.0827° N, 80.2707° E (Chennai Central Corridor)'),
+                          _formatPickupCoordinates(loc),
                           style: TextStyle(
                             fontSize: isDesktop ? 15.5 : 13.5,
                             fontWeight: FontWeight.w800,

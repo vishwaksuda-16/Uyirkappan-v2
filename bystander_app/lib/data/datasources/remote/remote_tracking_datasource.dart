@@ -69,6 +69,8 @@ class RemoteTrackingDataSource implements TrackingDataSource {
       if (event.event == 'AMBULANCE_LOCATION_UPDATED' ||
           event.event == 'AMBULANCE_ASSIGNED' ||
           event.event == 'AMBULANCE_REASSIGNED') {
+        final eventRequestId = event.data['requestId']?.toString();
+        if (eventRequestId != null && eventRequestId != requestId) return;
         final model = _parseTrackingBody(event.data);
         if (model != null && !controller.isClosed) {
           controller.add(model);
@@ -105,13 +107,16 @@ class RemoteTrackingDataSource implements TrackingDataSource {
     final sub = socketService?.eventStream.listen((event) {
       if (event.event == 'ETA_UPDATED') {
         final data = event.data;
-        final minutes = (data['etaMinutes'] ?? data['eta'] ?? data['currentETA'] ?? 5) as num;
-        final distanceKm = (data['distanceKm'] ?? data['distance'] ?? 2.5) as num;
+        final eventRequestId = data['requestId']?.toString();
+        if (eventRequestId != null && eventRequestId != requestId) return;
+        final minutes = data['etaMinutes'] ?? data['eta'] ?? data['currentETA'];
+        if (minutes is! num) return;
+        final distanceKm = data['distanceKm'] ?? data['distance'];
         final eta = EtaModel(
           estimatedMinutes: minutes.toInt(),
-          distanceMeters: distanceKm.toDouble() * 1000.0,
+          distanceMeters: distanceKm is num ? distanceKm.toDouble() * 1000.0 : null,
           lastCalculatedAt: DateTime.now(),
-          trafficCondition: 'Green Corridor Active',
+          trafficCondition: data['trafficCondition'] as String?,
         );
         if (!controller.isClosed) controller.add(eta);
       }
@@ -131,8 +136,8 @@ class RemoteTrackingDataSource implements TrackingDataSource {
       final statusStr = body['status'] as String? ?? 'DISPATCHED';
 
       // Parse nested or flat location
-      double lat = 13.0827;
-      double lng = 80.2707;
+      double? lat;
+      double? lng;
       String? provider = body['provider'] as String?;
       String? gpsSource = body['gpsSource'] as String?;
       bool? isSimulated = body['isSimulated'] is bool ? body['isSimulated'] as bool : null;
@@ -140,8 +145,8 @@ class RemoteTrackingDataSource implements TrackingDataSource {
 
       if (body['location'] is Map) {
         final loc = body['location'] as Map;
-        lat = (loc['latitude'] ?? loc['lat'] ?? 13.0827).toDouble();
-        lng = (loc['longitude'] ?? loc['lng'] ?? 80.2707).toDouble();
+        lat = (loc['latitude'] ?? loc['lat'] as num?)?.toDouble();
+        lng = (loc['longitude'] ?? loc['lng'] as num?)?.toDouble();
         provider ??= loc['provider'] as String?;
         gpsSource ??= loc['gpsSource'] as String?;
         if (loc['isSimulated'] is bool) isSimulated ??= loc['isSimulated'] as bool;
@@ -150,6 +155,12 @@ class RemoteTrackingDataSource implements TrackingDataSource {
         lat = (body['latitude'] as num).toDouble();
         lng = (body['longitude'] as num).toDouble();
       }
+      if (lat == null || lng == null || !lat.isFinite || !lng.isFinite) {
+        return null;
+      }
+      final locationBody = body['location'] is Map ? body['location'] as Map : const {};
+      final speed = body['speedKmH'] ?? body['speed'] ?? locationBody['speed'];
+      final heading = body['headingDegrees'] ?? body['heading'] ?? locationBody['heading'];
 
       provider ??= (gpsSource == 'DEVICE' ? 'real' : 'simulation');
       gpsSource ??= (provider == 'real' ? 'DEVICE' : 'SIMULATION');
@@ -161,20 +172,26 @@ class RemoteTrackingDataSource implements TrackingDataSource {
       }
 
       // Parse ETA
-      EtaModel eta = EtaModel(
-        estimatedMinutes: 5,
-        distanceMeters: 2000.0,
-        lastCalculatedAt: DateTime.now(),
-        trafficCondition: 'Green Corridor Active',
-      );
+      EtaModel? eta;
       if (body['eta'] is Map) {
         eta = EtaModel.fromJson(body['eta'] as Map<String, dynamic>);
       } else if (body['eta'] is num) {
+        final status = RequestStatus.fromCode(statusStr);
+        final routeData = status == RequestStatus.patientOnboard ||
+                status == RequestStatus.enRouteToHospital ||
+                status == RequestStatus.arrivedAtHospital
+            ? body['hospitalRoute'] ?? body['route']
+            : body['route'];
+        final routeDistance = routeData is Map
+            ? routeData['distanceKm'] ?? routeData['totalDistanceKm']
+            : null;
+        final distanceKm = body['distanceKm'] ?? routeDistance;
         eta = EtaModel(
           estimatedMinutes: (body['eta'] as num).toInt(),
-          distanceMeters: 2000.0,
+          distanceMeters:
+              distanceKm is num ? distanceKm.toDouble() * 1000.0 : null,
           lastCalculatedAt: DateTime.now(),
-          trafficCondition: 'Green Corridor Active',
+          trafficCondition: body['trafficCondition'] as String?,
         );
       }
 
@@ -186,8 +203,8 @@ class RemoteTrackingDataSource implements TrackingDataSource {
         timestamp: timestamp,
         status: RequestStatus.fromCode(statusStr),
         eta: eta,
-        speedKmH: (body['speedKmH'] ?? body['speed'] as num?)?.toDouble() ?? 48.0,
-        headingDegrees: (body['headingDegrees'] ?? body['heading'] as num?)?.toDouble(),
+        speedKmH: speed is num ? speed.toDouble() : null,
+        headingDegrees: heading is num ? heading.toDouble() : null,
         driverName: body['driverName'] as String?,
         driverPhone: body['driverPhone'] as String?,
         vehicleNumber: body['vehicleNumber'] as String?,

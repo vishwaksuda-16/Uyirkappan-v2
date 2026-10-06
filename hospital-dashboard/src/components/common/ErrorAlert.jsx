@@ -4,6 +4,7 @@ export function ErrorAlert({
   title = 'System Alert',
   message = 'Unable to load emergency operational data.',
   onRetry,
+  actionLabel = 'Retry',
 }) {
   return (
     <div
@@ -69,7 +70,7 @@ export function ErrorAlert({
           }
         >
           <RefreshCw size={13} />
-          <span>Retry</span>
+          <span>{actionLabel}</span>
         </button>
       )}
     </div>

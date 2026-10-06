@@ -80,11 +80,22 @@ class EtaService {
   async getFullETA(emergencyRequest, ambulance, destination) {
     try {
       const matcher = getMatcherServices();
+      const onwardToHospital = [
+        'PATIENT_ONBOARD',
+        'EN_ROUTE_TO_HOSPITAL',
+        'ARRIVED_AT_HOSPITAL',
+      ].includes(emergencyRequest.status);
+      const hospital = onwardToHospital
+        ? await this.store.getHospitalById(emergencyRequest.destinationHospitalId)
+        : null;
       return matcher.etaService.calculateETA(
         emergencyRequest.requestId,
         ambulance.id,
         ambulance.currentLocation,
-        destination || emergencyRequest.pickupLocation
+        destination ||
+          (onwardToHospital && hospital
+            ? hospital.location
+            : emergencyRequest.pickupLocation)
       );
     } catch (error) {
       console.error('[Matcher] Full ETA error:', error);

@@ -95,6 +95,14 @@ function createConfig(env = process.env) {
 
   const jwtExpiresIn = env.JWT_EXPIRES_IN || '7d';
   const driverTimeoutMs = Number(env.DRIVER_RESPONSE_TIMEOUT_MS) || 60000;
+  const requireOnlineDriverValue = env.DISPATCH_REQUIRE_ONLINE_DRIVER;
+  if (requireOnlineDriverValue !== undefined &&
+      !['true', 'false'].includes(String(requireOnlineDriverValue).toLowerCase())) {
+    throw new Error('DISPATCH_REQUIRE_ONLINE_DRIVER must be "true" or "false"');
+  }
+  const requireOnlineDriver = requireOnlineDriverValue === undefined
+    ? isProduction
+    : String(requireOnlineDriverValue).toLowerCase() === 'true';
 
   // Datasets & Infrastructure Paths (Stably resolved)
   const defaultDatasetDir = path.resolve(__dirname, '../../../Datasets/Datasets');
@@ -151,6 +159,10 @@ function createConfig(env = process.env) {
       jwtExpiresIn,
       driverResponseTimeoutMs: driverTimeoutMs,
       bcryptSaltRounds: 10,
+    }),
+
+    dispatch: Object.freeze({
+      requireOnlineDriver,
     }),
 
     routing: Object.freeze({
@@ -219,6 +231,7 @@ function createConfig(env = process.env) {
           driverResponseTimeoutMs: this.auth.driverResponseTimeoutMs,
           secretConfigured: Boolean(this.auth.jwtSecret),
         },
+        dispatch: this.dispatch,
         routing: this.routing,
         logging: this.logging,
         datasets: {

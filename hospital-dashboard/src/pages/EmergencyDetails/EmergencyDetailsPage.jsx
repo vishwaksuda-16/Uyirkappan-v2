@@ -29,6 +29,8 @@ export function EmergencyDetailsPage() {
   const [attempts, setAttempts] = useState(liveEmergency?.attempts || []);
   const [isLoading, setIsLoading] = useState(!liveEmergency);
   const [error, setError] = useState(null);
+  const [attemptsError, setAttemptsError] = useState(null);
+  const [trackingError, setTrackingError] = useState(null);
 
   // Join individual emergency room: emergency:{requestId} (Checklist Section 9)
   useEffect(() => {
@@ -42,65 +44,136 @@ export function EmergencyDetailsPage() {
     };
   }, [requestId]);
 
-  // Keep synced if live emergency in EmergencyContext updates via WebSocket
-  useEffect(() => {
-    if (liveEmergency) {
-      setEmergency(liveEmergency);
-      if (liveEmergency.attempts) {
-        setAttempts(liveEmergency.attempts);
-      }
-    }
-  }, [liveEmergency]);
-
-  // Initial load from API if not already in context: GET /api/emergency/{requestId}
+  // Load the authoritative dossier even when the incoming-feed socket supplied a summary.
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
       if (!requestId) return;
-      if (!liveEmergency) {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const details = await emergencyApi.getEmergencyDetails(requestId);
-          const attemptData = await emergencyApi.getRequestAttempts(requestId);
-          if (isMounted) {
-            setEmergency(details);
-            setAttempts(attemptData || details.attempts || []);
-          }
-        } catch (err) {
-          if (isMounted) {
-            setError(err.message || 'Unable to load emergency incident dossier.');
-          }
-        } finally {
-          if (isMounted) setIsLoading(false);
+      setIsLoading(true);
+      setError(null);
+      try {
+        const details = await emergencyApi.getEmergencyDetails(requestId);
+        if (isMounted) {
+          setEmergency((current) => ({
+            ...(current || {}),
+            ...details,
+            incidentLocation: details.incidentLocation || details.pickupLocation || current?.incidentLocation,
+          }));
+          setAttempts(details.attempts || []);
         }
+        try {
+          const attemptData = await emergencyApi.getRequestAttempts(requestId);
+          if (isMounted) setAttempts(attemptData || details.attempts || []);
+        } catch (err) {
+          if (isMounted) setAttemptsError(err.message || 'Unable to load fallback attempt history.');
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || 'Unable to load emergency incident dossier.');
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     }
     loadData();
     return () => {
       isMounted = false;
     };
-  }, [requestId, liveEmergency]);
+  }, [requestId]);
+
+  useEffect(() => {
+    if (!requestId) return undefined;
+    let isMounted = true;
+    const refreshTracking = async () => {
+      try {
+        const tracking = await emergencyApi.getEmergencyTracking(requestId);
+        if (!isMounted) return;
+        const hospitalLegStatuses = [
+          'PATIENT_ONBOARD',
+          'PATIENT_ON_BOARD',
+          'EN_ROUTE_TO_HOSPITAL',
+          'ARRIVED_AT_HOSPITAL',
+          'COMPLETED',
+        ];
+        const route = hospitalLegStatuses.includes(tracking.status)
+          ? (tracking.hospitalRoute || tracking.route)
+          : tracking.route;
+
+        setEmergency((current) => ({
+          ...(current || {}),
+          status: tracking.status || current?.status,
+          ambulanceId: tracking.ambulanceId || current?.ambulanceId,
+          currentLocation: tracking.location || current?.currentLocation,
+          eta: tracking.eta ?? current?.eta,
+          distanceKm: tracking.distanceKm ?? current?.distanceKm,
+          route: route || current?.route,
+          hospitalRoute: tracking.hospitalRoute || current?.hospitalRoute,
+          destinationHospital: tracking.destinationHospital || current?.destinationHospital,
+          updatedAt: tracking.timestamp || current?.updatedAt,
+        }));
+        setTrackingError(null);
+      } catch (err) {
+        if (isMounted) {
+          setTrackingError(err.message || 'Unable to refresh ambulance tracking data.');
+        }
+      }
+    };
+
+    refreshTracking();
+    const interval = setInterval(refreshTracking, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [requestId]);
+
+  const dashboardLink = (
+    <button
+      type="button"
+      onClick={() => navigate('/dashboard')}
+      style={{
+        marginBottom: '16px',
+        padding: '8px 12px',
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: 'var(--bg-card)',
+        color: 'var(--status-info)',
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      Back to Dashboard
+    </button>
+  );
 
   if (isLoading) {
-    return <LoadingSpinner message={`Loading emergency dossier for ${requestId}...`} fullPage />;
+    return (
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {dashboardLink}
+        <LoadingSpinner message={`Loading emergency dossier for ${requestId}...`} />
+      </div>
+    );
   }
 
   if (error || !emergency) {
     return (
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {dashboardLink}
         <ErrorAlert
-          title="Emergency Record Not Found"
+          title={error?.includes('403') || error?.toLowerCase().includes('access')
+            ? 'Dossier Access Denied'
+            : 'Emergency Record Unavailable'}
           message={error || `No emergency request found matching ID "${requestId}".`}
+          actionLabel="Back to Dashboard"
           onRetry={() => navigate('/dashboard')}
         />
       </div>
     );
   }
 
-  const pickupLat = emergency.incidentLocation?.latitude || emergency.pickupLocation?.latitude || emergency.location?.latitude || 13.0827;
-  const pickupLng = emergency.incidentLocation?.longitude || emergency.pickupLocation?.longitude || emergency.location?.longitude || 80.2707;
-  const pickupAddress = emergency.incidentLocation?.address || emergency.pickupLocation?.address || emergency.pickupLocation || 'Scene: Central Railway Station vicinity, Chennai';
+  const pickupLat = emergency.incidentLocation?.latitude ?? emergency.pickupLocation?.latitude ?? emergency.location?.latitude;
+  const pickupLng = emergency.incidentLocation?.longitude ?? emergency.pickupLocation?.longitude ?? emergency.location?.longitude;
+  const pickupAddress = emergency.incidentLocation?.address || emergency.pickupLocation?.address || 'Incident location';
 
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
@@ -125,6 +198,9 @@ export function EmergencyDetailsPage() {
       >
         {/* Left Column: Live GPS Tracking Map */}
         <div>
+          {trackingError && (
+            <ErrorAlert title="Live Tracking Unavailable" message={trackingError} />
+          )}
           <AmbulanceMap emergency={emergency} height="440px" />
         </div>
 
@@ -168,7 +244,9 @@ export function EmergencyDetailsPage() {
               {pickupAddress}
             </div>
             <div className="tabular-nums font-mono" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              GPS Coordinates: {formatCoordinates(pickupLat, pickupLng)}
+              GPS Coordinates: {typeof pickupLat === 'number' && typeof pickupLng === 'number'
+                ? formatCoordinates(pickupLat, pickupLng)
+                : 'Unavailable'}
             </div>
           </div>
 
@@ -274,6 +352,9 @@ export function EmergencyDetailsPage() {
       </div>
 
       {/* Cascading Fallback Attempts Audit Trail (Checklist Section 7) */}
+      {attemptsError && (
+        <ErrorAlert title="Fallback History Unavailable" message={attemptsError} />
+      )}
       <FallbackAuditTrail attempts={attempts} />
     </div>
   );

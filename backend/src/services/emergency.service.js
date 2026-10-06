@@ -16,21 +16,38 @@ class EmergencyService {
     const { emergencyType, victimCount, pickupLocation } = body;
     if (!emergencyType) return { ok: false, message: 'emergencyType is required' };
     if (!victimCount || victimCount < 1) return { ok: false, message: 'victimCount must be at least 1' };
-    if (!pickupLocation || typeof pickupLocation.latitude !== 'number' || typeof pickupLocation.longitude !== 'number') {
-      return { ok: false, message: 'pickupLocation.latitude and longitude are required' };
+    if (!pickupLocation ||
+        !Number.isFinite(pickupLocation.latitude) ||
+        !Number.isFinite(pickupLocation.longitude) ||
+        pickupLocation.latitude < -90 ||
+        pickupLocation.latitude > 90 ||
+        pickupLocation.longitude < -180 ||
+        pickupLocation.longitude > 180) {
+      return { ok: false, message: 'pickupLocation must contain valid latitude and longitude coordinates' };
     }
 
-    let destinationHospitalId = body.destinationHospitalId || null;
+    const matcher = require('../matcher/index').getMatcherServices();
+    const roadProjection = matcher.dijkstraService.nearestSegmentService.findNearestRoadSegment(pickupLocation);
+    if (roadProjection.distanceToSegmentKm > 2) {
+      return {
+        ok: false,
+        message: `Pickup location is outside the supported road network (${roadProjection.distanceToSegmentKm} km from mapped roads)`,
+      };
+    }
+
+    let destinationHospitalId = null;
     let hospitalMatch = null;
-    if (!destinationHospitalId && this.hospitalService) {
+    if (this.hospitalService) {
       hospitalMatch = await this.hospitalService.selectBestHospital(body);
       destinationHospitalId = hospitalMatch?.selectedHospitalId || null;
-    } else if (!destinationHospitalId) {
-      destinationHospitalId = await this.store.getNearestHospitalId(pickupLocation);
+      if (!destinationHospitalId) {
+        return { ok: false, message: hospitalMatch?.selectionReason || 'No suitable hospital is available for this location' };
+      }
+    } else {
+      destinationHospitalId = body.destinationHospitalId || await this.store.getNearestHospitalId(pickupLocation);
     }
 
     // Map Geolocation -> Nearest Valid Road-Network Node
-    const matcher = require('../matcher/index').getMatcherServices();
     const nearestNode = matcher.nearestNodeService.findNearestNode(pickupLocation);
     const { distanceKm } = require('../data/memoryStore');
     const distMeters = Math.round(distanceKm(pickupLocation, { latitude: nearestNode.latitude, longitude: nearestNode.longitude }) * 1000);
@@ -123,7 +140,14 @@ class EmergencyService {
       this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'STATUS_UPDATED', {
         requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE',
       });
-      return { ok: true, requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE', debug: debugObject };
+      return {
+        ok: true,
+        requestId: request.requestId,
+        pickupLocation: request.pickupLocation,
+        isManualOverride: request.isManualOverride === true,
+        status: 'NO_AMBULANCE_AVAILABLE',
+        debug: debugObject,
+      };
     }
 
     // Atomic availability check: verify the chosen unit hasn't been engaged concurrently
@@ -135,7 +159,14 @@ class EmergencyService {
         this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'STATUS_UPDATED', {
           requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE',
         });
-        return { ok: true, requestId: request.requestId, status: 'NO_AMBULANCE_AVAILABLE', debug: debugObject };
+        return {
+          ok: true,
+          requestId: request.requestId,
+          pickupLocation: request.pickupLocation,
+          isManualOverride: request.isManualOverride === true,
+          status: 'NO_AMBULANCE_AVAILABLE',
+          debug: debugObject,
+        };
       }
     }
 
@@ -296,6 +327,8 @@ class EmergencyService {
     return {
       ok: true,
       requestId: request.requestId,
+      pickupLocation: request.pickupLocation,
+      isManualOverride: request.isManualOverride === true,
       status: 'ASSIGNED',
       assignmentId: assignment.id,
       ambulanceId: selection.ambulance.id,
@@ -307,6 +340,7 @@ class EmergencyService {
       destinationHospitalId: request.destinationHospitalId,
       decisionReason: selection.decisionReason,
       route: selection.route,
+      hospitalRoute,
       alternativeRoutes: selection.alternativeRoutes,
       baselineRoute,
       baselineEta,
@@ -342,9 +376,26 @@ class EmergencyService {
       this.fallbackService.stopTimeout(assn.id);
       await this.store.transitionAssignmentState(assn.id, ['PENDING', 'ACCEPTED'], 'CANCELLED');
       await this.store.releaseAmbulance(assn.ambulanceId);
+      const cancellation = {
+        requestId,
+        assignmentId: assn.id,
+        ambulanceId: assn.ambulanceId,
+        status: 'CANCELLED',
+      };
+      this.notificationService.emitToRoom(`driver:${assn.ambulanceId}`, 'ASSIGNMENT_CANCELLED', cancellation);
+      this.notificationService.emitToRoom(`ambulance:${assn.ambulanceId}`, 'ASSIGNMENT_CANCELLED', cancellation);
     }
-    this.notificationService.emitToRoom(`emergency:${requestId}`, 'STATUS_UPDATED', { requestId, status: 'CANCELLED' });
-    this.notificationService.emitToRoom(`user:${request.requesterId}`, 'STATUS_UPDATED', { requestId, status: 'CANCELLED' });
+    const cancellation = {
+      requestId,
+      ambulanceId: request.assignedAmbulanceId || null,
+      hospitalId: request.destinationHospitalId || null,
+      status: 'CANCELLED',
+    };
+    this.notificationService.emitToRoom(`emergency:${requestId}`, 'STATUS_UPDATED', cancellation);
+    this.notificationService.emitToRoom(`user:${request.requesterId}`, 'STATUS_UPDATED', cancellation);
+    if (request.destinationHospitalId) {
+      this.notificationService.emitToRoom(`hospital:${request.destinationHospitalId}`, 'STATUS_UPDATED', cancellation);
+    }
 
     log('info', {
       event: 'LIFECYCLE_TRANSITION',

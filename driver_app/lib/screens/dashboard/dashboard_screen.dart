@@ -25,6 +25,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isShowingAssignmentModal = false;
+  bool _isRedirectingToLogin = false;
 
   @override
   void didChangeDependencies() {
@@ -64,6 +65,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final navState = context.watch<NavigationState>();
     final driver = authState.currentDriver;
 
+    if (driver == null) {
+      if (!_isRedirectingToLogin) {
+        _isRedirectingToLogin = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/login');
+          }
+        });
+      }
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     _checkPendingAssignment(driverState);
 
     return Scaffold(
@@ -85,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  driver?.ambulanceId ?? 'AMB-003',
+                  driver.ambulanceId,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
@@ -93,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Text(
-                  driver?.name ?? 'Driver DRV-003',
+                  driver.name,
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
@@ -1069,4 +1085,3 @@ class _DriverSwitcherModalContentState extends State<_DriverSwitcherModalContent
     );
   }
 }
-

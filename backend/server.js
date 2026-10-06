@@ -6,6 +6,7 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 
 const { PORT, DATA_STORE_MODE } = require('./src/config/environment');
+const { config } = require('./src/config');
 const { MemoryStore } = require('./src/data/memoryStore');
 const { MongoStore } = require('./src/data/mongoStore');
 const { connectDB, disconnectDB, dbState } = require('./src/config/database');
@@ -82,12 +83,19 @@ const { log } = require('./src/utils/logger');
   const ctx = {
     store,
     io,
+    onlineDriverIds: new Set(),
+    driverSocketCounts: new Map(),
     notificationService: new NotificationService(io, store),
     dbState: DATA_STORE_MODE === 'mongodb' ? dbState : () => ({ connected: false, state: 'not-required' }),
     matcher: matcherServices, // ✅ Add matcher to context
   };
   ctx.etaService = new EtaService(store);
-  ctx.dispatchService = new DispatchService(store, ctx.etaService);
+  ctx.dispatchService = new DispatchService(
+    store,
+    ctx.etaService,
+    ctx.onlineDriverIds,
+    config.dispatch.requireOnlineDriver
+  );
   ctx.fallbackService = new FallbackService(ctx);
   ctx.assignmentService = new AssignmentService(ctx);
   ctx.hospitalService = new HospitalService(ctx);

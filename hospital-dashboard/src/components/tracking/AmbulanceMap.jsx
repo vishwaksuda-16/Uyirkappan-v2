@@ -12,30 +12,26 @@ export function AmbulanceMap({
 }) {
   const [isStale, setIsStale] = useState(false);
 
-  const currentLocation = emergency?.currentLocation || {
-    latitude: 13.0658,
-    longitude: 80.2541,
-    speed: 45,
-    heading: 190,
-    timestamp: new Date().toISOString(),
-  };
-
-  const hospitalLocation = emergency?.hospitalLocation || {
-    latitude: emergency?.destinationHospital?.location?.latitude || 13.0827,
-    longitude: emergency?.destinationHospital?.location?.longitude || 80.2707,
-    name: emergency?.hospitalName || 'Destination Hospital',
-  };
-
-  const incidentLocation = emergency?.incidentLocation || {
-    latitude: 13.0827,
-    longitude: 80.2707,
-    name: 'Incident Site',
-  };
+  const currentLocation = emergency?.currentLocation || null;
+  const hospitalLocation = emergency?.hospitalLocation
+    || emergency?.destinationHospital?.location
+    || null;
+  const incidentLocation = emergency?.incidentLocation
+    || emergency?.pickupLocation
+    || emergency?.location
+    || null;
+  const isValidLocation = (location) =>
+    Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude);
+  const selectedRoute = emergency?.route;
+  const primaryWaypoints = selectedRoute?.waypoints || [];
 
   // Check staleness (Module 3 Section 41: "Stale ambulance location: Mark location as stale")
   useEffect(() => {
     const checkStaleness = () => {
-      if (!currentLocation?.timestamp) return;
+      if (!currentLocation?.timestamp) {
+        setIsStale(false);
+        return;
+      }
       const ageMs = Date.now() - new Date(currentLocation.timestamp).getTime();
       setIsStale(ageMs > 45000); // marked stale if > 45s without update
     };
@@ -46,24 +42,18 @@ export function AmbulanceMap({
   }, [currentLocation?.timestamp]);
 
   // Compute normalized canvas coordinates from GPS bounding box using the main route and endpoints
-  const allLats = [
-    incidentLocation?.latitude,
-    currentLocation?.latitude,
-    hospitalLocation?.latitude,
-    ...(emergency?.route?.waypoints?.map(wp => wp.latitude) || []),
-  ].filter(lat => typeof lat === 'number' && !isNaN(lat) && lat !== 0);
-
-  const allLngs = [
-    incidentLocation?.longitude,
-    currentLocation?.longitude,
-    hospitalLocation?.longitude,
-    ...(emergency?.route?.waypoints?.map(wp => wp.longitude) || []),
-  ].filter(lng => typeof lng === 'number' && !isNaN(lng) && lng !== 0);
-
-  const minLat = Math.min(...allLats) - 0.005;
-  const maxLat = Math.max(...allLats) + 0.005;
-  const minLng = Math.min(...allLngs) - 0.005;
-  const maxLng = Math.max(...allLngs) + 0.005;
+  const mapLocations = [
+    incidentLocation,
+    currentLocation,
+    hospitalLocation,
+    ...primaryWaypoints,
+  ].filter(isValidLocation);
+  const allLats = mapLocations.map((location) => location.latitude);
+  const allLngs = mapLocations.map((location) => location.longitude);
+  const minLat = (allLats.length ? Math.min(...allLats) : 0) - 0.005;
+  const maxLat = (allLats.length ? Math.max(...allLats) : 0) + 0.005;
+  const minLng = (allLngs.length ? Math.min(...allLngs) : 0) - 0.005;
+  const maxLng = (allLngs.length ? Math.max(...allLngs) : 0) + 0.005;
 
   const latRange = maxLat - minLat || 0.01;
   const lngRange = maxLng - minLng || 0.01;
@@ -75,18 +65,22 @@ export function AmbulanceMap({
     return { x: Math.max(5, Math.min(95, x)), y: Math.max(10, Math.min(90, y)) };
   };
 
-  const incidentPos = project(incidentLocation.latitude, incidentLocation.longitude);
-  const currentPos = project(currentLocation.latitude, currentLocation.longitude);
-  const hospitalPos = project(hospitalLocation.latitude, hospitalLocation.longitude);
+  const incidentPos = isValidLocation(incidentLocation)
+    ? project(incidentLocation.latitude, incidentLocation.longitude)
+    : null;
+  const currentPos = isValidLocation(currentLocation)
+    ? project(currentLocation.latitude, currentLocation.longitude)
+    : null;
+  const hospitalPos = isValidLocation(hospitalLocation)
+    ? project(hospitalLocation.latitude, hospitalLocation.longitude)
+    : null;
 
-  // Dynamic route waypoints from backend
-  const primaryWaypoints = emergency?.route?.waypoints || [];
   const primaryPoints = primaryWaypoints.length > 1
-    ? primaryWaypoints.map(wp => project(wp.latitude, wp.longitude))
-    : [currentPos, hospitalPos];
+    ? primaryWaypoints.filter(isValidLocation).map((waypoint) => project(waypoint.latitude, waypoint.longitude))
+    : [];
   const primaryPolyline = primaryPoints.map(p => `${p.x},${p.y}`).join(' ');
 
-  const bestEta = emergency?.eta || emergency?.route?.travelTimeMinutes || 6;
+  const bestEta = emergency?.eta ?? emergency?.route?.travelTimeMinutes;
 
   return (
     <div
@@ -94,7 +88,7 @@ export function AmbulanceMap({
         position: 'relative',
         height,
         width: '100%',
-        backgroundColor: '#0a0f1d',
+        backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-md)',
         overflow: 'hidden',
@@ -106,7 +100,7 @@ export function AmbulanceMap({
       <div
         style={{
           padding: '10px 16px',
-          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          backgroundColor: 'var(--bg-secondary)',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -132,7 +126,7 @@ export function AmbulanceMap({
           </div>
 
           {/* Telemetry Source Badge: LIVE vs SIMULATION */}
-          {currentLocation?.provider === 'real' || currentLocation?.gpsSource === 'DEVICE' || currentLocation?.isSimulated === false ? (
+          {currentLocation && (currentLocation.provider === 'real' || currentLocation.gpsSource === 'DEVICE' || currentLocation.isSimulated === false) ? (
             <span
               style={{
                 display: 'inline-flex',
@@ -140,7 +134,7 @@ export function AmbulanceMap({
                 gap: '4px',
                 padding: '2px 7px',
                 borderRadius: 'var(--radius-sm)',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                backgroundColor: 'var(--status-success-bg)',
                 border: '1px solid var(--status-success-border)',
                 color: 'var(--status-success)',
                 fontSize: '10px',
@@ -150,7 +144,7 @@ export function AmbulanceMap({
             >
               ● GPS LIVE (REAL)
             </span>
-          ) : (
+          ) : currentLocation ? (
             <span
               style={{
                 display: 'inline-flex',
@@ -158,7 +152,7 @@ export function AmbulanceMap({
                 gap: '4px',
                 padding: '2px 7px',
                 borderRadius: 'var(--radius-sm)',
-                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                backgroundColor: 'var(--status-info-bg)',
                 border: '1px solid var(--status-info-border)',
                 color: 'var(--status-info)',
                 fontSize: '10px',
@@ -167,6 +161,10 @@ export function AmbulanceMap({
               }}
             >
               ○ GPS SIMULATION
+            </span>
+          ) : (
+            <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: 600 }}>
+              WAITING FOR GPS
             </span>
           )}
 
@@ -203,11 +201,15 @@ export function AmbulanceMap({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Gauge size={13} style={{ color: 'var(--status-info)' }} />
-            <span className="tabular-nums font-mono">{formatSpeed(currentLocation.speed)}</span>
+            <span className="tabular-nums font-mono">
+              {currentLocation?.speed != null ? formatSpeed(currentLocation.speed) : '--'}
+            </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Compass size={13} style={{ color: 'var(--status-info)' }} />
-            <span className="tabular-nums font-mono">{currentLocation.heading || 0}°</span>
+            <span className="tabular-nums font-mono">
+              {currentLocation?.heading != null ? `${currentLocation.heading}°` : '--'}
+            </span>
           </div>
         </div>
       </div>
@@ -219,7 +221,7 @@ export function AmbulanceMap({
           flex: 1,
           width: '100%',
           overflow: 'hidden',
-          backgroundColor: '#0c1322',
+          backgroundColor: 'var(--bg-primary)',
         }}
       >
         {/* Radar / Grid lines */}
@@ -234,19 +236,19 @@ export function AmbulanceMap({
         >
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(30, 41, 59, 0.45)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="1" />
             </pattern>
             <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-              <stop offset="50%" stopColor="#ef4444" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.9" />
+              <stop offset="0%" stopColor="#0f766e" stopOpacity="0.65" />
+              <stop offset="50%" stopColor="#14b8a6" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#0f766e" stopOpacity="0.95" />
             </linearGradient>
           </defs>
 
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Selected dispatch route for the active emergency */}
-          {primaryPolyline && (
+          {primaryPoints.length > 1 && (
             <polyline
               points={primaryPolyline}
               fill="none"
@@ -259,33 +261,33 @@ export function AmbulanceMap({
         </svg>
 
         {/* Selected route badge */}
-        {primaryPoints.length > 0 && (
+        {primaryPoints.length > 1 && (
           <div
             style={{
               position: 'absolute',
               left: `${primaryPoints[Math.floor(primaryPoints.length / 2)].x}%`,
               top: `${primaryPoints[Math.floor(primaryPoints.length / 2)].y}%`,
               transform: 'translate(-50%, -50%)',
-              backgroundColor: '#0284c7',
+              backgroundColor: '#0f766e',
               color: '#ffffff',
               fontSize: '10px',
               fontWeight: 800,
               padding: '3px 8px',
               borderRadius: '10px',
-              border: '1px solid #38bdf8',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+              border: '1px solid #5eead4',
+              boxShadow: 'var(--shadow-md)',
               pointerEvents: 'none',
               zIndex: 13,
               letterSpacing: '0.04em',
               whiteSpace: 'nowrap',
             }}
           >
-            SELECTED ROUTE • {bestEta} min
+            {bestEta != null ? `SELECTED ROUTE • ${bestEta} min` : 'SELECTED ROUTE'}
           </div>
         )}
 
         {/* Incident Marker */}
-        <div
+        {incidentPos && <div
           style={{
             position: 'absolute',
             left: `${incidentPos.x}%`,
@@ -312,7 +314,7 @@ export function AmbulanceMap({
             style={{
               fontSize: '10px',
               fontWeight: 600,
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
               color: 'var(--text-secondary)',
               padding: '1px 6px',
               borderRadius: 'var(--radius-sm)',
@@ -322,10 +324,10 @@ export function AmbulanceMap({
           >
             Scene
           </span>
-        </div>
+        </div>}
 
         {/* Live Ambulance Marker (Moving) */}
-        <div
+        {currentPos && <div
           style={{
             position: 'absolute',
             left: `${currentPos.x}%`,
@@ -367,7 +369,7 @@ export function AmbulanceMap({
           <div
             style={{
               marginTop: '4px',
-              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+              backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--status-critical-border)',
               padding: '2px 8px',
               borderRadius: 'var(--radius-sm)',
@@ -377,12 +379,12 @@ export function AmbulanceMap({
               whiteSpace: 'nowrap',
             }}
           >
-            {emergency?.ambulanceId || 'AMB'} • {emergency?.eta || 6}m
+            {emergency?.ambulanceId || 'AMB'}{emergency?.eta != null ? ` • ${emergency.eta}m` : ''}
           </div>
-        </div>
+        </div>}
 
         {/* Hospital Destination Marker */}
-        <div
+        {hospitalPos && <div
           style={{
             position: 'absolute',
             left: `${hospitalPos.x}%`,
@@ -397,7 +399,7 @@ export function AmbulanceMap({
           <div
             style={{
               padding: '8px',
-              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              backgroundColor: 'var(--status-success-bg)',
               border: '2px solid var(--status-success)',
               borderRadius: '50%',
               color: 'var(--status-success)',
@@ -410,7 +412,7 @@ export function AmbulanceMap({
             style={{
               fontSize: '10px',
               fontWeight: 700,
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
               color: 'var(--status-success)',
               padding: '2px 6px',
               borderRadius: 'var(--radius-sm)',
@@ -420,14 +422,14 @@ export function AmbulanceMap({
           >
             Hospital Destination
           </span>
-        </div>
+        </div>}
       </div>
 
       {/* Map Footer Bar with Coordinates & Location Details */}
       <div
         style={{
           padding: '8px 16px',
-          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          backgroundColor: 'var(--bg-secondary)',
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
@@ -438,10 +440,12 @@ export function AmbulanceMap({
       >
         <div>
           <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Location: </span>
-          <span>{currentLocation.address || 'In transit along emergency corridor'}</span>
+          <span>{currentLocation?.address || (currentLocation ? 'Ambulance GPS location' : 'Waiting for first ambulance location')}</span>
         </div>
         <div className="tabular-nums font-mono">
-          {formatCoordinates(currentLocation.latitude, currentLocation.longitude)}
+          {currentLocation && isValidLocation(currentLocation)
+            ? formatCoordinates(currentLocation.latitude, currentLocation.longitude)
+            : 'GPS coordinates unavailable'}
         </div>
       </div>
     </div>

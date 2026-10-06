@@ -1,0 +1,97 @@
+services:
+  mongodb:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "db.adminCommand('ping').ok"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 5000
+      BASE_URL: http://localhost:5000
+      DATA_STORE_MODE: mongodb
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/uyirkappan}
+      DISPATCH_REQUIRE_ONLINE_DRIVER: ${DISPATCH_REQUIRE_ONLINE_DRIVER:-false}
+      CORS_ORIGINS: "*"
+      JWT_SECRET: ${JWT_SECRET:-uyirkappan-dev-secret-change-me}
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  hospital-dashboard:
+    build:
+      context: ./hospital-dashboard
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:5000/api
+      VITE_SOCKET_URL: http://localhost:5000
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  research-portal:
+    build:
+      context: .
+      dockerfile: research-portal/Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:5000/api
+    ports:
+      - "5174:5174"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  bystander-app:
+    build:
+      context: ./bystander_app
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  driver-app:
+    build:
+      context: ./driver_app
+      dockerfile: Dockerfile
+    ports:
+      - "${DRIVER_APP_PORT:-8082}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mongodb-data:

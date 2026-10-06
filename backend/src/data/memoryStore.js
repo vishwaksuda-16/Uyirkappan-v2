@@ -87,7 +87,7 @@ class MemoryStore {
     });
   }
   updateAmbulanceLocation(id, loc) {
-    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, timestamp } = loc || {};
+    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, accuracy, timestamp } = loc || {};
     return this.updateAmbulance(id, {
       currentLocation: {
         latitude,
@@ -97,6 +97,7 @@ class MemoryStore {
         provider: provider || 'simulation',
         gpsSource: gpsSource || 'SIMULATION',
         isSimulated: isSimulated !== undefined ? isSimulated : true,
+        accuracy: accuracy ?? null,
         timestamp: timestamp || new Date().toISOString(),
       },
       currentSpeed: speed ?? 0,
@@ -137,6 +138,7 @@ class MemoryStore {
       requesterId,
       emergencyType: body.emergencyType,
       victimCount: body.victimCount,
+      isManualOverride: body.isManualOverride === true,
       pickupLocation: { latitude: body.pickupLocation.latitude, longitude: body.pickupLocation.longitude },
       destinationHospitalId: body.destinationHospitalId || null,
       assignedAmbulanceId: null,
@@ -157,7 +159,12 @@ class MemoryStore {
     return r;
   }
   updateEmergencyStatus(requestId, status) { return this.updateEmergencyRequest(requestId, { status }); }
-  updateEmergencyETA(requestId, eta) { return this.updateEmergencyRequest(requestId, { currentETA: eta }); }
+  updateEmergencyETA(requestId, eta, distanceKm) {
+    return this.updateEmergencyRequest(requestId, {
+      currentETA: eta,
+      ...(Number.isFinite(distanceKm) ? { currentDistanceKm: distanceKm } : {}),
+    });
+  }
   markCompleted(requestId) {
     return this.updateEmergencyRequest(requestId, { status: 'COMPLETED', completedAt: new Date() });
   }

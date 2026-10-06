@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../core/utils/geo_utils.dart';
 
 class RouteWaypoint {
@@ -64,6 +66,73 @@ class RouteModel {
       currentWaypointIndex + 1 < waypoints.length
           ? waypoints[currentWaypointIndex + 1]
           : null;
+
+  double? get estimatedAverageSpeedKmh =>
+      totalDistanceKm > 0 && estimatedMinutes > 0
+          ? totalDistanceKm * 60 / estimatedMinutes
+          : null;
+
+  double routeDistanceForSegmentKm(int segmentIndex) {
+    if (segmentIndex < 0 || segmentIndex >= waypoints.length - 1) return 0.0;
+
+    final segmentDistance = GeoUtils.distanceKm(
+      waypoints[segmentIndex].location,
+      waypoints[segmentIndex + 1].location,
+    );
+    if (totalDistanceKm <= 0) return segmentDistance;
+
+    var geometricDistance = 0.0;
+    for (var index = 0; index < waypoints.length - 1; index++) {
+      geometricDistance += GeoUtils.distanceKm(
+        waypoints[index].location,
+        waypoints[index + 1].location,
+      );
+    }
+    return geometricDistance > 0
+        ? totalDistanceKm * segmentDistance / geometricDistance
+        : segmentDistance;
+  }
+
+  double distanceRemainingFrom(GeoPoint location) {
+    if (waypoints.length < 2) return 0.0;
+
+    var closestSegment = 0;
+    var closestProgress = 0.0;
+    var closestDistanceSquared = double.infinity;
+    final longitudeScale =
+        math.cos(location.latitude * math.pi / 180).abs().clamp(0.01, 1.0);
+
+    for (var index = 0; index < waypoints.length - 1; index++) {
+      final start = waypoints[index].location;
+      final end = waypoints[index + 1].location;
+      final dx = (end.longitude - start.longitude) * longitudeScale;
+      final dy = end.latitude - start.latitude;
+      final lengthSquared = dx * dx + dy * dy;
+      final progress = lengthSquared == 0
+          ? 0.0
+          : ((((location.longitude - start.longitude) * longitudeScale * dx) +
+                      ((location.latitude - start.latitude) * dy)) /
+                  lengthSquared)
+              .clamp(0.0, 1.0);
+      final projectedLongitude = start.longitude + (end.longitude - start.longitude) * progress;
+      final projectedLatitude = start.latitude + (end.latitude - start.latitude) * progress;
+      final offsetX = (location.longitude - projectedLongitude) * longitudeScale;
+      final offsetY = location.latitude - projectedLatitude;
+      final distanceSquared = offsetX * offsetX + offsetY * offsetY;
+
+      if (distanceSquared < closestDistanceSquared) {
+        closestDistanceSquared = distanceSquared;
+        closestSegment = index;
+        closestProgress = progress;
+      }
+    }
+
+    var remainingDistance = routeDistanceForSegmentKm(closestSegment) * (1 - closestProgress);
+    for (var index = closestSegment + 1; index < waypoints.length - 1; index++) {
+      remainingDistance += routeDistanceForSegmentKm(index);
+    }
+    return remainingDistance;
+  }
 
   RouteModel copyWith({
     String? routeId,

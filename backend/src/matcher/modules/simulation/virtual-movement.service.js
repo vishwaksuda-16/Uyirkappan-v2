@@ -26,54 +26,70 @@ class VirtualMovementService {
             latitude: finalNode.latitude,
             longitude: finalNode.longitude
         };
-        for (let i = 0; i < route.nodeIds.length; i++) {
-            const nodeId = route.nodeIds[i];
+        const nodes = route.nodeIds.map((nodeId) => {
             const node = this.graphService.getNode(nodeId);
             if (!node) {
                 throw new Error(`Route node ${nodeId} not found`);
             }
-            const previousNodeId = i > 0
-                ? route.nodeIds[i - 1]
-                : undefined;
-            let speed = 0;
-            let heading = 0;
-            if (previousNodeId) {
-                const previousNode = this.graphService.getNode(previousNodeId);
-                if (previousNode) {
-                    speed = this.calculateSpeed(previousNode.latitude, previousNode.longitude, node.latitude, node.longitude, route.travelTimeMinutes);
-                    heading = this.calculateHeading(previousNode.latitude, previousNode.longitude, node.latitude, node.longitude);
-                }
-            }
-            const locationUpdate = {
-                ambulanceId,
-                requestId,
-                latitude: node.latitude,
-                longitude: node.longitude,
-                speed,
-                heading,
-                timestamp: new Date()
-            };
-            /*
-             * Store the location in the tracking service.
-             */
-            this.trackingService.updateLocation(locationUpdate);
-            /*
-             * Notify the caller so the caller can execute
-             * the complete tracking + ETA + Socket.IO pipeline.
-             */
-            if (callbacks?.onLocationUpdate) {
-                await callbacks.onLocationUpdate(locationUpdate, movementDestination);
-            }
-            updates.push(locationUpdate);
-            /*
-             * Wait before moving to the next point.
-             * The first location is emitted immediately.
-             */
-            if (i < route.nodeIds.length - 1) {
-                await this.delay(this.getUpdateInterval());
+            return node;
+        });
+        let totalDistanceKm = 0;
+        const segmentDistances = [];
+        for (let i = 1; i < nodes.length; i++) {
+            const distance = this.calculateDistance(nodes[i - 1].latitude, nodes[i - 1].longitude, nodes[i].latitude, nodes[i].longitude);
+            segmentDistances.push(distance);
+            totalDistanceKm += distance;
+        }
+        const routeDistanceKm = totalDistanceKm;
+        const routeRoadDistanceKm = route.distanceKm > 0 ? route.distanceKm : totalDistanceKm;
+        const simulationSpeed = this.config.acceleratedTime
+            ? Math.max(0.1, this.config.speedMultiplier)
+            : 1;
+        const firstNode = nodes[0];
+        await this.emitLocationUpdate(ambulanceId, requestId, firstNode.latitude, firstNode.longitude, 0, 0, movementDestination, callbacks, updates);
+        for (let i = 1; i < nodes.length; i++) {
+            const from = nodes[i - 1];
+            const to = nodes[i];
+            const segmentDistanceKm = segmentDistances[i - 1];
+            const segmentTravelTimeMinutes = route.travelTimeMinutes *
+                (routeDistanceKm > 0
+                    ? segmentDistanceKm / routeDistanceKm
+                    : 1 / (nodes.length - 1));
+            const segmentDurationMs = segmentTravelTimeMinutes * 60000;
+            const wallDurationMs = segmentDurationMs / simulationSpeed;
+            const segmentRoadDistanceKm = routeDistanceKm > 0
+                ? routeRoadDistanceKm * (segmentDistanceKm / routeDistanceKm)
+                : segmentDistanceKm;
+            const speed = segmentDurationMs > 0
+                ? segmentRoadDistanceKm / (segmentDurationMs / 3600000)
+                : 0;
+            const heading = this.calculateHeading(from.latitude, from.longitude, to.latitude, to.longitude);
+            let elapsedMs = 0;
+            while (elapsedMs < wallDurationMs) {
+                const stepMs = Math.min(this.getUpdateInterval(), wallDurationMs - elapsedMs);
+                await this.delay(stepMs);
+                elapsedMs += stepMs;
+                const progress = wallDurationMs > 0 ? elapsedMs / wallDurationMs : 1;
+                await this.emitLocationUpdate(ambulanceId, requestId, from.latitude + (to.latitude - from.latitude) * progress, from.longitude + (to.longitude - from.longitude) * progress, speed, heading, movementDestination, callbacks, updates);
             }
         }
         return updates;
+    }
+    async emitLocationUpdate(ambulanceId, requestId, latitude, longitude, speed, heading, destination, callbacks, updates) {
+        const locationUpdate = {
+            ambulanceId,
+            requestId,
+            latitude,
+            longitude,
+            speed,
+            heading,
+            timestamp: new Date()
+        };
+        this.trackingService.updateLocation(locationUpdate);
+        if (callbacks?.onLocationUpdate) {
+            await callbacks.onLocationUpdate(locationUpdate, destination);
+        }
+        updates.push(locationUpdate);
     }
     getUpdateInterval() {
         if (this.config.acceleratedTime) {
@@ -84,14 +100,6 @@ class VirtualMovementService {
     }
     delay(milliseconds) {
         return new Promise((resolve) => setTimeout(resolve, milliseconds));
-    }
-    calculateSpeed(fromLatitude, fromLongitude, toLatitude, toLongitude, totalTravelTimeMinutes) {
-        const distanceKm = this.calculateDistance(fromLatitude, fromLongitude, toLatitude, toLongitude);
-        if (totalTravelTimeMinutes <= 0) {
-            return 0;
-        }
-        const hours = totalTravelTimeMinutes / 60;
-        return distanceKm / hours;
     }
     calculateHeading(fromLatitude, fromLongitude, toLatitude, toLongitude) {
         const lat1 = this.toRadians(fromLatitude);

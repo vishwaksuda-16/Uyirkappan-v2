@@ -134,7 +134,7 @@ class MongoStore {
     });
   }
   async updateAmbulanceLocation(id, loc) {
-    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, timestamp } = loc || {};
+    const { latitude, longitude, speed, heading, provider, gpsSource, isSimulated, accuracy, timestamp } = loc || {};
     return this.updateAmbulance(id, {
       currentLocation: {
         latitude,
@@ -144,6 +144,7 @@ class MongoStore {
         provider: provider || 'simulation',
         gpsSource: gpsSource || 'SIMULATION',
         isSimulated: isSimulated !== undefined ? isSimulated : true,
+        accuracy: accuracy ?? null,
         timestamp: timestamp || new Date().toISOString(),
       },
       currentSpeed: speed ?? 0,
@@ -193,6 +194,7 @@ class MongoStore {
       requesterId,
       emergencyType: body.emergencyType,
       victimCount: body.victimCount,
+      isManualOverride: body.isManualOverride === true,
       pickupLocation: { latitude: body.pickupLocation.latitude, longitude: body.pickupLocation.longitude },
       destinationHospitalId: body.destinationHospitalId || null,
       assignedAmbulanceId: null,
@@ -211,7 +213,12 @@ class MongoStore {
     ));
   }
   async updateEmergencyStatus(requestId, status) { return this.updateEmergencyRequest(requestId, { status }); }
-  async updateEmergencyETA(requestId, eta) { return this.updateEmergencyRequest(requestId, { currentETA: eta }); }
+  async updateEmergencyETA(requestId, eta, distanceKm) {
+    return this.updateEmergencyRequest(requestId, {
+      currentETA: eta,
+      ...(Number.isFinite(distanceKm) ? { currentDistanceKm: distanceKm } : {}),
+    });
+  }
   async markCompleted(requestId) {
     return this.updateEmergencyRequest(requestId, { status: 'COMPLETED', completedAt: new Date() });
   }
@@ -377,12 +384,13 @@ class MongoStore {
 
     // 2. 30 Canonical Hospitals
     for (const h of datasetLoader.hospitals) {
+      const hospitalSeed = { ...h };
+      delete hospitalSeed.updatedAt;
       await Hospital.updateOne(
         { id: h.id },
         {
-          $set: {
-            ...h,
-            location: { latitude: h.location.latitude, longitude: h.location.longitude },
+          $setOnInsert: {
+            ...hospitalSeed,
           },
         },
         { upsert: true }
@@ -395,7 +403,7 @@ class MongoStore {
       await Ambulance.updateOne(
         { id: a.id },
         {
-          $set: {
+          $setOnInsert: {
             ...a,
             ambulanceNumber: a.ambulanceId,
             driverId: a.driverId,

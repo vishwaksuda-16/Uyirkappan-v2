@@ -211,6 +211,9 @@ describe('UYIRKAPPAN — Dynamic Routing, Road-Segment Projection & Traffic Sens
       { latitude: 13.030903, longitude: 80.272724 },
       { latitude: 13.081, longitude: 80.2774 }
     );
+    assert.ok(res.waypoints.length > 2, 'Road-network routes must preserve intermediate graph nodes');
+    assert.equal(res.waypoints[0].nodeId, 'ORIGIN_GPS');
+    assert.equal(res.waypoints[res.waypoints.length - 1].nodeId, 'DEST_GPS');
     for (const wp of res.waypoints) {
       assert.ok(!forbiddenNodes.includes(wp.nodeId), `Forbidden synthetic node ${wp.nodeId} must never appear in waypoints`);
       assert.ok(!forbiddenNodes.includes(wp.name), `Forbidden synthetic node name ${wp.name} must never appear in waypoints`);

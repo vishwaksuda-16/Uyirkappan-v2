@@ -39,5 +39,38 @@ void main() {
       expect(find.text('Emergency Medical Assistance'), findsOneWidget);
       expect(find.text('Direct Emergency Helpline'), findsOneWidget);
     });
+
+    testWidgets('map pin taps update the pickup coordinates shown on the screen', (tester) async {
+      final mockDataSource = MockEmergencyRequestDataSource();
+      final repository = EmergencyRequestRepositoryImpl(
+        dataSource: mockDataSource,
+        localDataSource: FakeLocalDataSource(),
+      );
+      final emergencyController = EmergencyController(repository: repository);
+      final locationController = LocationController();
+      locationController.setManualEmergencyLocation(
+        latitude: 13.0448,
+        longitude: 80.2234,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            emergencyController: emergencyController,
+            locationController: locationController,
+            simulationController: SimulationController(mockDataSource: mockDataSource),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('13.04480° N, 80.22340° E'), findsOneWidget);
+      await tester.tapAt(const Offset(400, 200));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(locationController.isManualOverride, isTrue);
+      expect(locationController.emergencyLocation!.latitude, isNot(13.0448));
+      expect(find.text('13.04480° N, 80.22340° E'), findsNothing);
+    });
   });
 }

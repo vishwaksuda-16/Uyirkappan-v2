@@ -67,6 +67,24 @@ void main() {
       expect(deserialized.status, RequestStatus.searching);
     });
 
+    test('preserves patient and hospital routes in request JSON', () {
+      final model = EmergencyRequestModel.fromEntity(testRequest).copyWith(
+        backendRoute: [
+          LocationData(latitude: 13.08, longitude: 80.27, timestamp: DateTime.now()),
+          LocationData(latitude: 13.081, longitude: 80.271, timestamp: DateTime.now()),
+        ],
+        backendHospitalRoute: [
+          LocationData(latitude: 13.081, longitude: 80.271, timestamp: DateTime.now()),
+          LocationData(latitude: 13.06, longitude: 80.25, timestamp: DateTime.now()),
+        ],
+      );
+
+      final restored = EmergencyRequestModel.fromJson(model.toJson());
+      expect(restored.backendRoute, hasLength(2));
+      expect(restored.backendHospitalRoute, hasLength(2));
+      expect(restored.backendHospitalRoute!.last.latitude, 13.06);
+    });
+
     test('should produce valid toSubmissionJson payload for POST /api/emergency-requests', () {
       final model = EmergencyRequestModel.fromEntity(testRequest);
       final submissionJson = model.toSubmissionJson();
@@ -77,6 +95,40 @@ void main() {
       expect(submissionJson['latitude'], 13.0827);
       expect(submissionJson['longitude'], 80.2707);
       expect(submissionJson['additionalNotes'], 'Patient having chest tightness');
+    });
+
+    test('submits the manually pinned coordinates without replacing them with device defaults', () {
+      final request = testRequest.copyWith(
+        emergencyLocation: LocationData(
+          latitude: 13.0418,
+          longitude: 80.2341,
+          timestamp: DateTime.now(),
+          isManualOverride: true,
+        ),
+      );
+      final submission = EmergencyRequestModel.fromEntity(request).toSubmissionJson();
+      final pickup = submission['pickupLocation'] as Map<String, dynamic>;
+
+      expect(pickup['latitude'], 13.0418);
+      expect(pickup['longitude'], 80.2341);
+      expect(submission['latitude'], 13.0418);
+      expect(submission['longitude'], 80.2341);
+      expect(submission['isManualOverride'], isTrue);
+    });
+
+    test('reads the backend-confirmed pickup pin instead of retaining device GPS', () {
+      final response = EmergencyRequestModel.fromJson({
+        ...EmergencyRequestModel.fromEntity(testRequest).toJson(),
+        'pickupLocation': {
+          'latitude': 13.0418,
+          'longitude': 80.2341,
+          'isManualOverride': true,
+        },
+      });
+
+      expect(response.emergencyLocation.latitude, 13.0418);
+      expect(response.emergencyLocation.longitude, 80.2341);
+      expect(response.emergencyLocation.isManualOverride, isTrue);
     });
 
     test('should calculate response-time metrics accurately', () {

@@ -5,6 +5,8 @@ const { ErrorCode } = require('../utils/errors');
 
 module.exports = function initSocketServer(io, ctx) {
   const store = ctx.store;
+  ctx.onlineDriverIds ??= new Set();
+  ctx.driverSocketCounts ??= new Map();
 
   // ✅ Initialize the Intelligent Matcher with Socket.IO
   const matcherServices = initializeMatcher(io);
@@ -62,10 +64,21 @@ module.exports = function initSocketServer(io, ctx) {
     });
 
     if (socket.user?.role === 'DRIVER') {
+      const driverId = socket.user.id;
+      const socketCount = (ctx.driverSocketCounts.get(driverId) || 0) + 1;
+      ctx.driverSocketCounts.set(driverId, socketCount);
+      ctx.onlineDriverIds.add(driverId);
       io.emit('DRIVER_CONNECTED', {
-        driverId: socket.user.id,
+        driverId,
         ambulanceId: socket.user.ambulanceId,
         timestamp: new Date().toISOString(),
+      });
+      logger.info({
+        event: 'DRIVER_PRESENCE_ONLINE',
+        driverId,
+        ambulanceId: socket.user.ambulanceId,
+        activeSockets: socketCount,
+        message: `Driver ${driverId} is available for dispatch`,
       });
     }
 
@@ -239,10 +252,25 @@ module.exports = function initSocketServer(io, ctx) {
         message: `Socket disconnected: ${socket.id}`,
       });
       if (socket.user?.role === 'DRIVER') {
+        const driverId = socket.user.id;
+        const socketCount = Math.max(0, (ctx.driverSocketCounts.get(driverId) || 1) - 1);
+        if (socketCount === 0) {
+          ctx.driverSocketCounts.delete(driverId);
+          ctx.onlineDriverIds.delete(driverId);
+        } else {
+          ctx.driverSocketCounts.set(driverId, socketCount);
+        }
         io.emit('DRIVER_DISCONNECTED', {
-          driverId: socket.user.id,
+          driverId,
           ambulanceId: socket.user.ambulanceId,
           timestamp: new Date().toISOString(),
+        });
+        logger.info({
+          event: 'DRIVER_PRESENCE_OFFLINE',
+          driverId,
+          ambulanceId: socket.user.ambulanceId,
+          activeSockets: socketCount,
+          message: `Driver ${driverId} disconnected from dispatch`,
         });
       }
     });

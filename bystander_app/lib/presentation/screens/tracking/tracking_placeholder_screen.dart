@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/map_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/location_data.dart';
+import '../../../domain/entities/request_status.dart';
 import '../../../domain/entities/tracking_info.dart';
 import '../../../domain/repositories/tracking_repository.dart';
 import '../../controllers/emergency_controller.dart';
@@ -58,10 +59,33 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
             : const Stream.empty(),
         initialData: _currentTelemetry,
         builder: (context, snapshot) {
-          final telemetry = snapshot.data ?? _currentTelemetry;
-          final ambulanceId = telemetry?.ambulanceId ?? activeRequest?.assignedAmbulanceId ?? 'AMB-CH-042';
-          final etaFormatted = telemetry?.eta?.formattedEta ?? '6 min';
-          final speed = telemetry?.speedKmH != null ? '${telemetry!.speedKmH!.toStringAsFixed(0)} km/h' : '48 km/h';
+          final hasConfirmedDriver =
+              activeRequest?.status.hasConfirmedDriver ?? false;
+          final telemetry = hasConfirmedDriver
+              ? snapshot.data ?? _currentTelemetry
+              : null;
+          final hospitalLeg = activeRequest?.status == RequestStatus.patientOnboard ||
+              activeRequest?.status == RequestStatus.enRouteToHospital ||
+              activeRequest?.status == RequestStatus.arrivedAtHospital;
+          final journeyLabel = activeRequest?.status == RequestStatus.arrivedAtHospital
+              ? 'Arrived at Hospital'
+              : hospitalLeg
+                  ? 'En Route to Hospital'
+                  : 'En Route to Scene';
+          final routeWaypoints = hospitalLeg
+              ? activeRequest?.backendHospitalRoute ?? activeRequest?.backendRoute
+              : activeRequest?.backendRoute;
+          final ambulanceId = telemetry?.ambulanceId ??
+              (hasConfirmedDriver ? activeRequest?.assignedAmbulanceId : null) ??
+              'Ambulance';
+          final etaFormatted = telemetry?.eta?.formattedEta ??
+              (activeRequest?.currentETA == null ? 'ETA unavailable' : '${activeRequest!.currentETA} min');
+          final speed = telemetry?.speedKmH != null
+              ? '${telemetry!.speedKmH!.toStringAsFixed(0)} km/h'
+              : '--';
+          final distance = telemetry?.eta?.distanceMeters == null
+              ? '--'
+              : '${(telemetry!.eta!.distanceMeters! / 1000).toStringAsFixed(1)} km';
 
           return Stack(
             children: [
@@ -78,6 +102,8 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                       : null,
                   heading: telemetry?.headingDegrees,
                   ambulanceId: ambulanceId,
+                  routeWaypoints: routeWaypoints,
+                  alternativeRoutes: activeRequest?.backendAlternativeRoutes,
                   style: _selectedMapStyle,
                   isPickerMode: false,
                 ),
@@ -159,9 +185,9 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                    const Text(
-                                      'En Route to Scene',
-                                      style: TextStyle(
+                                    Text(
+                                      journeyLabel,
+                                      style: const TextStyle(
                                         fontSize: 11,
                                         color: AppColors.success,
                                         fontWeight: FontWeight.w700,
@@ -285,9 +311,9 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
-                                    'Driver: Suresh Kumar • Unit 42',
-                                    style: TextStyle(
+                                  Text(
+                                    'Driver: ${activeRequest?.assignedDriverName ?? telemetry?.driverName ?? 'Driver details pending'} • Unit: ${telemetry?.vehicleNumber ?? ambulanceId}',
+                                    style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.textSecondaryLight,
                                       fontWeight: FontWeight.w500,
@@ -299,10 +325,16 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                             // Quick Call Button (accessible >= 48x48 touch target)
                             InkWell(
                               onTap: () {
+                                final driverPhone =
+                                    telemetry?.driverPhone ?? activeRequest?.driverPhone;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Calling Ambulance Unit: 108...'),
-                                    duration: Duration(seconds: 2),
+                                  SnackBar(
+                                    content: Text(
+                                      driverPhone == null || driverPhone.isEmpty
+                                          ? 'Driver contact is unavailable'
+                                          : 'Driver contact: $driverPhone',
+                                    ),
+                                    duration: const Duration(seconds: 2),
                                   ),
                                 );
                               },
@@ -359,7 +391,7 @@ class _TrackingPlaceholderScreenState extends State<TrackingPlaceholderScreen> {
                             _buildTelemetryMetric(
                               icon: Icons.alt_route_rounded,
                               label: 'DISTANCE',
-                              value: '2.4 km',
+                              value: distance,
                               color: AppColors.emergencyRed,
                             ),
                             Container(width: 1, height: 32, color: Colors.grey.withValues(alpha: 0.2)),

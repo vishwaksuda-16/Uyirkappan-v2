@@ -274,10 +274,17 @@ class ActiveNavigationScreen extends StatelessWidget {
     Assignment? assignment,
     NavigationState navState,
   ) {
-    final reason = assignment?.decisionReason ??
-        'Primary Arterial Corridor evaluated as optimal due to lowest cumulative travel latency under dynamic traffic simulation.';
-    final primaryDist = assignment?.distanceKm ?? 4.2;
-    final primaryEta = assignment?.etaMinutes ?? 8;
+    final reason = assignment?.decisionReason ?? 'Route decision details are unavailable.';
+    final primaryDist = navState.distanceRemainingKm > 0
+        ? navState.distanceRemainingKm
+        : assignment?.distanceKm;
+    final primaryEta = navState.dynamicEtaMinutes > 0
+        ? navState.dynamicEtaMinutes
+        : assignment?.etaMinutes;
+    final alternativeRoute = assignment?.alternativeRoutes != null &&
+            assignment!.alternativeRoutes!.isNotEmpty
+        ? assignment.alternativeRoutes!.first
+        : null;
 
     showDialog(
       context: context,
@@ -345,8 +352,8 @@ class ActiveNavigationScreen extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Expanded(flex: 2, child: Text('${primaryDist.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white, fontSize: 11))),
-                          Expanded(flex: 2, child: Text('$primaryEta min', style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w800))),
+                          Expanded(flex: 2, child: Text(primaryDist == null ? '--' : '${primaryDist.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white, fontSize: 11))),
+                          Expanded(flex: 2, child: Text(primaryEta == null ? '--' : '$primaryEta min', style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w800))),
                           const Expanded(flex: 3, child: Text('SELECTED (Fastest)', style: TextStyle(color: AppColors.tacticalCyan, fontSize: 10, fontWeight: FontWeight.w800))),
                         ],
                       ),
@@ -354,12 +361,12 @@ class ActiveNavigationScreen extends StatelessWidget {
                     const Divider(height: 1, color: Color(0xFF334155)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Expanded(flex: 3, child: Text('Alternate Corridor 1', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
-                          Expanded(flex: 2, child: Text('5.1 km', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11))),
-                          Expanded(flex: 2, child: Text('11 min', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
-                          Expanded(flex: 3, child: Text('Alternative • Dynamic Traffic', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 9))),
+                          Expanded(flex: 3, child: Text(alternativeRoute?.routeId ?? 'Alternative route unavailable', style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
+                          Expanded(flex: 2, child: Text(alternativeRoute == null ? '--' : '${alternativeRoute.totalDistanceKm.toStringAsFixed(1)} km', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11))),
+                          Expanded(flex: 2, child: Text(alternativeRoute == null ? '--' : '${alternativeRoute.estimatedMinutes} min', style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 11))),
+                          const Expanded(flex: 3, child: Text('Alternative route', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 9))),
                         ],
                       ),
                     ),
@@ -578,6 +585,7 @@ class ActiveNavigationScreen extends StatelessWidget {
                   targetHospital,
                   hospitalRoute: assignment?.hospitalRoute,
                   alternativeRoutes: assignment?.alternativeRoutes,
+                  requestId: assignment?.requestId,
                 );
               },
               icon: const Icon(Icons.navigation, size: 22),
@@ -644,15 +652,8 @@ class ActiveNavigationScreen extends StatelessWidget {
   ) {
     final hosp = assignment?.destinationHospital;
     final hospName = hosp?.name ?? (navState.destinationName.isNotEmpty ? navState.destinationName : 'Vijaya Hospital');
-    final baselineEta = assignment?.baselineEta ?? 11;
-    final actualEta = assignment?.etaMinutes ?? 8;
-    final savedMins = (baselineEta - actualEta).clamp(1, 10);
-    final savedPct = assignment?.etaImprovementPct ??
-        ((savedMins / baselineEta) * 100).roundToDouble();
-    final reason = assignment?.decisionReason ??
-        'Arterial corridor prioritized to mitigate high congestion along secondary links, ensuring fastest handover time.';
-    final baselineDist = assignment?.baselineDistance ?? 5.2;
-    final actualDist = assignment?.distanceKm ?? 4.2;
+    final reason = assignment?.decisionReason ?? 'Dispatch decision details are unavailable.';
+    final savedPct = assignment?.etaImprovementPct;
 
     showDialog(
       context: context,
@@ -749,7 +750,7 @@ class ActiveNavigationScreen extends StatelessWidget {
                           const Icon(Icons.timer_outlined, color: AppColors.tacticalCyan, size: 16),
                           const SizedBox(width: 8),
                           Text(
-                            'Travel time: $actualEta min (Baseline: $baselineEta min, ${savedPct.toStringAsFixed(0)}% faster)',
+                            'Travel time: ${assignment?.etaMinutes.toString() ?? '--'} min (Baseline: ${assignment?.baselineEta?.toString() ?? '--'} min${savedPct == null ? '' : ', ${savedPct.toStringAsFixed(0)}% faster'})',
                             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -760,7 +761,7 @@ class ActiveNavigationScreen extends StatelessWidget {
                           const Icon(Icons.route_outlined, color: AppColors.tacticalCyan, size: 16),
                           const SizedBox(width: 8),
                           Text(
-                            'Distance: ${actualDist.toStringAsFixed(1)} km (Baseline: ${baselineDist.toStringAsFixed(1)} km)',
+                            'Distance: ${assignment?.distanceKm.toStringAsFixed(1) ?? '--'} km (Baseline: ${assignment?.baselineDistance?.toStringAsFixed(1) ?? '--'} km)',
                             style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ],

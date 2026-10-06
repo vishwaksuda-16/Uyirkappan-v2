@@ -4,9 +4,11 @@ const { getMatcherServices } = require('../matcher/index');
  * Dispatch Service — Now uses Intelligent Matcher
  */
 class DispatchService {
-  constructor(store, etaService) {
+  constructor(store, etaService, onlineDriverIds, requireOnlineDriver = true) {
     this.store = store;
     this.etaService = etaService;
+    this.onlineDriverIds = onlineDriverIds;
+    this.requireOnlineDriver = requireOnlineDriver;
   }
 
   /**
@@ -16,6 +18,10 @@ class DispatchService {
   async isEligibleForAssignment(amb) {
     if (!amb) return false;
     if (amb.status !== 'AVAILABLE') return false;
+    if (this.requireOnlineDriver && this.onlineDriverIds && this.store.mode !== 'memory' &&
+        (!amb.driverId || !this.onlineDriverIds.has(amb.driverId))) {
+      return false;
+    }
     if (amb.currentRequestId != null || amb.activeEmergencyId != null || amb.currentAssignmentId != null) {
       return false;
     }
@@ -40,13 +46,29 @@ class DispatchService {
       allAmbulances.map(async (amb) => ({ amb, isEligible: await this.isEligibleForAssignment(amb) }))
     );
 
-    const matcherAmbulances = eligibilityResults.map(({ amb, isEligible }) => ({
-      ambulanceId: amb.id,
-      currentLocation: amb.currentLocation,
-      availabilityStatus: isEligible ? 'AVAILABLE' : (amb.status === 'OFFLINE' ? 'OFFLINE' : 'BUSY'),
-      driverId: amb.driverId,
-      capabilities: amb.capabilities || [],
-    }));
+    const matcherAmbulances = eligibilityResults.map(({ amb, isEligible }) => {
+      const location = amb.currentLocation;
+      const hasValidCoordinates = location &&
+        Number.isFinite(location.latitude) &&
+        Number.isFinite(location.longitude) &&
+        location.latitude >= -90 &&
+        location.latitude <= 90 &&
+        location.longitude >= -180 &&
+        location.longitude <= 180;
+      const roadProjection = hasValidCoordinates
+        ? matcher.dijkstraService.nearestSegmentService.findNearestRoadSegment(location)
+        : null;
+      const isRouteable = roadProjection && roadProjection.distanceToSegmentKm <= 2;
+      return {
+        ambulanceId: amb.id,
+        currentLocation: amb.currentLocation,
+        availabilityStatus: isEligible && isRouteable
+          ? 'AVAILABLE'
+          : (amb.status === 'OFFLINE' ? 'OFFLINE' : 'BUSY'),
+        driverId: amb.driverId,
+        capabilities: amb.capabilities || [],
+      };
+    });
 
     // ✅ Convert emergency request to matcher format
     const matcherRequest = {
@@ -72,7 +94,7 @@ class DispatchService {
       const decision = matcher.dispatchEngineService.dispatch(
         matcherRequest,
         matcherAmbulances,
-        50, // search radius in km
+        Number.POSITIVE_INFINITY,
         excludedSet
       );
 
@@ -109,6 +131,7 @@ class DispatchService {
         event: 'DISPATCH_SCORING_COMPLETED',
         requestId: emergencyRequest.requestId,
         totalCandidates: matcherAmbulances.length,
+        onlineDriverCount: this.onlineDriverIds?.size ?? null,
         excludedCount: excludedSet.size,
         selectedAmbulanceId: decision.selectedAmbulanceId,
         score: decision.score,

@@ -1,13 +1,11 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../common/StatusBadge';
 import UrgencyBadge from '../common/UrgencyBadge';
 import EmptyState from '../common/EmptyState';
-import { Search, Filter, Truck, ArrowUpRight } from 'lucide-react';
+import { Search, Filter, Truck } from 'lucide-react';
 import { formatDateTime } from '../../utils/formatters';
 
 export function EmergencyHistoryTable({ history = [] }) {
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
 
@@ -135,7 +133,7 @@ export function EmergencyHistoryTable({ history = [] }) {
               <tr
                 style={{
                   borderBottom: '1px solid var(--border-subtle)',
-                  backgroundColor: 'rgba(15, 23, 42, 0.4)',
+                  backgroundColor: 'var(--bg-surface)',
                   color: 'var(--text-secondary)',
                   fontSize: '11px',
                   textTransform: 'uppercase',
@@ -150,7 +148,6 @@ export function EmergencyHistoryTable({ history = [] }) {
                 <th style={{ padding: '12px 16px' }}>Created At</th>
                 <th style={{ padding: '12px 16px' }}>Completed At</th>
                 <th style={{ padding: '12px 16px' }}>Admission Outcome</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -226,28 +223,6 @@ export function EmergencyHistoryTable({ history = [] }) {
                     </div>
                   </td>
 
-                  {/* Action */}
-                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                    <button
-                      onClick={() => navigate(`/emergency/${item.requestId}`)}
-                      title="View case dossier"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '4px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor: 'var(--bg-elevated)',
-                        border: '1px solid var(--border-default)',
-                        color: 'var(--status-info)',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      <span>View</span>
-                      <ArrowUpRight size={12} />
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>

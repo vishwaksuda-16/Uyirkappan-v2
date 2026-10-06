@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:driver_app/core/utils/geo_utils.dart';
+import 'package:driver_app/models/route_model.dart';
 import 'package:driver_app/services/location/simulated_location_service.dart';
 import 'package:driver_app/services/simulation/road_network.dart';
 import 'package:driver_app/services/simulation/simulation_engine.dart';
@@ -69,6 +70,35 @@ void main() {
 
       final interpolated = GeoUtils.interpolate(p1, p2, 0.5);
       expect(interpolated.latitude, closeTo((p1.latitude + p2.latitude) / 2, 0.0001));
+    });
+
+    test('RouteModel reports remaining distance along the route', () {
+      const route = RouteModel(
+        routeId: 'ROUTE-1',
+        waypoints: [
+          RouteWaypoint(
+            nodeId: 'START',
+            nodeName: 'Start',
+            location: GeoPoint(13.0, 80.0),
+          ),
+          RouteWaypoint(
+            nodeId: 'MIDDLE',
+            nodeName: 'Middle',
+            location: GeoPoint(13.0, 80.01),
+          ),
+          RouteWaypoint(
+            nodeId: 'END',
+            nodeName: 'End',
+            location: GeoPoint(13.0, 80.02),
+          ),
+        ],
+        totalDistanceKm: 10,
+        estimatedMinutes: 15,
+      );
+
+      expect(route.distanceRemainingFrom(const GeoPoint(13.0, 80.0)), closeTo(10, 0.01));
+      expect(route.distanceRemainingFrom(const GeoPoint(13.0, 80.01)), closeTo(5, 0.01));
+      expect(route.distanceRemainingFrom(const GeoPoint(13.0, 80.02)), closeTo(0, 0.01));
     });
 
     test('RoadNetwork has documented routes to patient and hospital', () {

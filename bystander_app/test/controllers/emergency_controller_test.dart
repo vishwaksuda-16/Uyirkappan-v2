@@ -5,6 +5,7 @@ import 'package:uyirkappan_bystander/domain/entities/emergency_type.dart';
 import 'package:uyirkappan_bystander/domain/entities/location_data.dart';
 import 'package:uyirkappan_bystander/domain/entities/request_status.dart';
 import 'package:uyirkappan_bystander/presentation/controllers/emergency_controller.dart';
+import 'package:uyirkappan_bystander/data/datasources/remote/socket_service.dart';
 import '../unit/mock_repository_test.dart';
 
 void main() {
@@ -13,20 +14,26 @@ void main() {
     late FakeLocalDataSource fakeLocalDataSource;
     late EmergencyRequestRepositoryImpl repository;
     late EmergencyController controller;
+    late SocketService socketService;
 
     setUp(() {
-      mockDataSource = MockEmergencyRequestDataSource();
+      socketService = SocketService();
+      mockDataSource = MockEmergencyRequestDataSource(socketService: socketService);
       fakeLocalDataSource = FakeLocalDataSource();
       repository = EmergencyRequestRepositoryImpl(
         dataSource: mockDataSource,
         localDataSource: fakeLocalDataSource,
       );
-      controller = EmergencyController(repository: repository);
+      controller = EmergencyController(
+        repository: repository,
+        socketService: socketService,
+      );
     });
 
     tearDown(() {
       controller.dispose();
       mockDataSource.dispose();
+      socketService.dispose();
     });
 
     final testLocation = LocationData(
@@ -106,6 +113,25 @@ void main() {
       expect(controller.activeRequest, isNull);
       expect(controller.victimCount, 1);
       expect(controller.selectedType, EmergencyType.accident);
+    });
+
+    test('completion clears the active ride and persisted request', () async {
+      final success = await controller.submitEmergencyRequest(
+        emergencyLocation: testLocation,
+      );
+      expect(success, isTrue);
+      final requestId = controller.activeRequest!.requestId;
+      expect(fakeLocalDataSource.activeId, requestId);
+
+      socketService.emitSimulatedEvent('EMERGENCY_COMPLETED', {
+        'requestId': requestId,
+      });
+
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.activeRequest, isNull);
+      expect(controller.hasActiveRequest, isFalse);
+      expect(controller.submissionState, SubmissionState.idle);
+      expect(fakeLocalDataSource.activeId, isNull);
     });
   });
 }

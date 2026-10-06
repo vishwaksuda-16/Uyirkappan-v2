@@ -32,6 +32,8 @@ class DriverState extends ChangeNotifier {
   StreamSubscription<Hospital>? _hospitalSub;
   StreamSubscription<ConnectionStatus>? _connectionSub;
   StreamSubscription<Map<String, dynamic>>? _demoAssignmentSub;
+  Timer? _assignmentPollTimer;
+  bool _assignmentPollInProgress = false;
 
   DriverState({required DriverRepository repository}) : _repository = repository {
     _initStreams();
@@ -119,6 +121,8 @@ class DriverState extends ChangeNotifier {
   Future<void> syncActiveAssignment() => _syncActiveAssignment();
 
   Future<void> _syncActiveAssignment() async {
+    if (_assignmentPollInProgress) return;
+    _assignmentPollInProgress = true;
     try {
       final active = await _repository.getActiveAssignment();
       if (active != null) {
@@ -140,6 +144,9 @@ class DriverState extends ChangeNotifier {
         }
       }
     } catch (_) {}
+    finally {
+      _assignmentPollInProgress = false;
+    }
   }
 
   Future<void> _loadMetrics() async {
@@ -149,6 +156,11 @@ class DriverState extends ChangeNotifier {
   }
 
   Future<void> initializeForDriver(Driver driver) async {
+    _assignmentPollTimer?.cancel();
+    _assignmentPollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _syncActiveAssignment(),
+    );
     _availability = driver.availability;
     _lifecycleState = driver.availability == AmbulanceAvailability.available
         ? DriverLifecycleState.available
@@ -438,6 +450,7 @@ class DriverState extends ChangeNotifier {
 
       _todayCompletedCount++;
       await _repository.incrementTodayCompleted();
+      _repository.stopLocationTracking();
 
       // Automatically transitions to AVAILABLE per documentation
       DriverStateMachine.validateTransition(
@@ -462,6 +475,7 @@ class DriverState extends ChangeNotifier {
         _pendingAssignment?.requestId == requestId) {
       _activeAssignment = null;
       _pendingAssignment = null;
+      _repository.stopLocationTracking();
       _lifecycleState = DriverLifecycleState.available;
       _availability = AmbulanceAvailability.available;
       _feedbackMessage = (requestId == 'ALL' || requestId == '*')
@@ -493,6 +507,8 @@ class DriverState extends ChangeNotifier {
 
   /// Complete session cleanup on logout (Phase 16)
   void resetOnLogout() {
+    _assignmentPollTimer?.cancel();
+    _assignmentPollTimer = null;
     _activeAssignment = null;
     _pendingAssignment = null;
     _lifecycleState = DriverLifecycleState.offline;
@@ -505,6 +521,7 @@ class DriverState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _assignmentPollTimer?.cancel();
     _assignmentSub?.cancel();
     _cancelledSub?.cancel();
     _hospitalSub?.cancel();

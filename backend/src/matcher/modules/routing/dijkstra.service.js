@@ -334,6 +334,7 @@ class DijkstraService {
      */
     findDynamicRoute(originLocation, destinationLocation, options = {}) {
         const { dynamicGraph, origProj, destProj } = this.buildDynamicGraph(originLocation, destinationLocation);
+        this.validateRoadCoverage(origProj, destProj);
         const route = this.findShortestRoute('ORIGIN_GPS', 'DEST_GPS', new Map(), dynamicGraph);
         const validation = this.validateRouteGeometry(route, originLocation, destinationLocation);
         return {
@@ -357,6 +358,7 @@ class DijkstraService {
      */
     findDynamicMultiRoutes(originLocation, destinationLocation, options = {}) {
         const { dynamicGraph, origProj, destProj } = this.buildDynamicGraph(originLocation, destinationLocation);
+        this.validateRoadCoverage(origProj, destProj);
         const multi = this.findMultiRoutes('ORIGIN_GPS', 'DEST_GPS', 2, dynamicGraph);
         const enrich = (r) => ({
             ...r,
@@ -380,6 +382,16 @@ class DijkstraService {
             originLocation,
             destinationLocation,
         };
+    }
+
+    validateRoadCoverage(originProjection, destinationProjection) {
+        const maximumApproachDistanceKm = 2.0;
+        if (originProjection.distanceToSegmentKm > maximumApproachDistanceKm) {
+            throw new Error(`Origin is outside road-network coverage (${originProjection.distanceToSegmentKm} km from mapped roads)`);
+        }
+        if (destinationProjection.distanceToSegmentKm > maximumApproachDistanceKm) {
+            throw new Error(`Destination is outside road-network coverage (${destinationProjection.distanceToSegmentKm} km from mapped roads)`);
+        }
     }
 
     /**

@@ -277,18 +277,6 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
               }
             }
 
-            // Reject clicks landing in the top navbar or bottom dock screen regions
-            const clientY = orig.clientY;
-            const screenH = window.innerHeight;
-            const screenW = window.innerWidth;
-            const isDesktop = screenW >= 1000;
-
-            const topZone = isDesktop ? 95 : 180;
-            const bottomZone = screenH - (isDesktop ? 150 : 220);
-
-            if (clientY <= topZone || clientY >= bottomZone) {
-              return;
-            }
           }
 
           const clickLat = e.lngLat.lat;
@@ -547,6 +535,7 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
   window.uyirkappanMaps.clearRoute = function (containerId) {
     getState(containerId).route = null;
     getState(containerId).lastFittedDestKey = null;
+    delete pendingRoutes[containerId];
     const map = maps[containerId];
 
     // Clear route badge markers
@@ -557,7 +546,15 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
       markers[containerId].routeBadges = [];
     }
 
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
+    if (!map.isStyleLoaded()) {
+      map.once('style.load', function () {
+        if (getState(containerId).route === null) {
+          window.uyirkappanMaps.clearRoute(containerId);
+        }
+      });
+      return;
+    }
 
     // Clear primary route layers
     try {
@@ -595,7 +592,7 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
       altLabels = routePayload.alternativeLabels || [];
     }
 
-    getState(containerId).route = primaryCoords;
+    getState(containerId).route = routePayload;
     const map = maps[containerId];
     if (!map) {
       pendingRoutes[containerId] = routePayload;
@@ -604,7 +601,10 @@ window.uyirkappanMaps = window.uyirkappanMaps || {};
 
     if (!map.isStyleLoaded()) {
       map.once('style.load', function () {
-        window.uyirkappanMaps.drawMultiRoutes(containerId, routePayload);
+        const currentRoute = getState(containerId).route;
+        if (currentRoute) {
+          window.uyirkappanMaps.drawMultiRoutes(containerId, currentRoute);
+        }
       });
       return;
     }

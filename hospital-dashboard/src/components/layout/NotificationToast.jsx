@@ -1,10 +1,8 @@
 import useEmergency from '../../hooks/useEmergency';
 import { AlertCircle, Info, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 export function NotificationToast() {
   const { notifications, dismissNotification } = useEmergency();
-  const navigate = useNavigate();
 
   if (!notifications || notifications.length === 0) return null;
 
@@ -33,10 +31,10 @@ export function NotificationToast() {
           : 'var(--border-default)';
 
         const bgColor = isCritical
-          ? 'rgba(30, 15, 20, 0.95)'
+          ? 'var(--status-critical-bg)'
           : isWarning
-          ? 'rgba(35, 25, 10, 0.95)'
-          : 'rgba(15, 23, 42, 0.95)';
+          ? 'var(--status-warning-bg)'
+          : 'var(--bg-secondary)';
 
         const textColor = isCritical
           ? 'var(--status-critical)'
@@ -59,12 +57,7 @@ export function NotificationToast() {
               alignItems: 'flex-start',
               gap: '12px',
               animation: 'fadeIn 0.25s ease',
-              cursor: n.details?.requestId ? 'pointer' : 'default',
-            }}
-            onClick={() => {
-              if (n.details?.requestId) {
-                navigate(`/emergency/${n.details.requestId}`);
-              }
+              cursor: 'default',
             }}
           >
             <div style={{ color: textColor, marginTop: '2px', flexShrink: 0 }}>
@@ -100,18 +93,6 @@ export function NotificationToast() {
               >
                 {n.message}
               </div>
-              {n.details?.requestId && (
-                <div
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--status-info)',
-                    marginTop: '6px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Click to open dossier →
-                </div>
-              )}
             </div>
 
             <button

@@ -24,6 +24,7 @@ class EmergencyRequest {
   final int fallbackCount;
   final int? currentETA;
   final List<LocationData>? backendRoute;
+  final List<LocationData>? backendHospitalRoute;
   final List<List<LocationData>>? backendAlternativeRoutes;
   final String? routeId;
   final String? routeReason;
@@ -59,6 +60,7 @@ class EmergencyRequest {
     this.fallbackCount = 0,
     this.currentETA,
     this.backendRoute,
+    this.backendHospitalRoute,
     this.backendAlternativeRoutes,
     this.routeId,
     this.routeReason,
@@ -96,6 +98,7 @@ class EmergencyRequest {
     int? fallbackCount,
     int? currentETA,
     List<LocationData>? backendRoute,
+    List<LocationData>? backendHospitalRoute,
     List<List<LocationData>>? backendAlternativeRoutes,
     String? routeId,
     String? routeReason,
@@ -129,6 +132,7 @@ class EmergencyRequest {
       fallbackCount: fallbackCount ?? this.fallbackCount,
       currentETA: currentETA ?? this.currentETA,
       backendRoute: backendRoute ?? this.backendRoute,
+      backendHospitalRoute: backendHospitalRoute ?? this.backendHospitalRoute,
       backendAlternativeRoutes: backendAlternativeRoutes ?? this.backendAlternativeRoutes,
       routeId: routeId ?? this.routeId,
       routeReason: routeReason ?? this.routeReason,

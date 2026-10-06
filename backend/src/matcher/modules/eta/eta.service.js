@@ -9,25 +9,10 @@ class ETAService {
     }
 
     calculateETA(requestId, ambulanceId, currentLocation, destination) {
-        let multiRoutes;
-        try {
-            multiRoutes = this.dijkstraService.findDynamicMultiRoutes(currentLocation, destination);
-        } catch (_) {
-            const ambulanceNode = this.nearestNodeService.findNearestNode(currentLocation);
-            const destinationNode = this.nearestNodeService.findNearestNode(destination);
-            try {
-                multiRoutes = this.dijkstraService.findMultiRoutes(ambulanceNode.nodeId, destinationNode.nodeId);
-            } catch (__) {
-                const fallbackRoute = this.dijkstraService.findShortestRoute(ambulanceNode.nodeId, destinationNode.nodeId);
-                multiRoutes = {
-                    primaryRoute: { ...fallbackRoute, routeId: 'ROUTE-PRIMARY', isPrimary: true, cost: 0.1, score: 0.1 },
-                    alternativeRoutes: [],
-                    candidateRoutes: [{ ...fallbackRoute, routeId: 'ROUTE-PRIMARY', isPrimary: true, cost: 0.1, score: 0.1 }],
-                    selectionReason: "Primary route selected.",
-                    alternativeReason: "Alternative route unavailable in supplied road-network dataset.",
-                };
-            }
+        if (typeof this.dijkstraService.findDynamicMultiRoutes !== 'function') {
+            throw new Error('Exact-coordinate road routing is unavailable');
         }
+        const multiRoutes = this.dijkstraService.findDynamicMultiRoutes(currentLocation, destination);
 
         const primary = multiRoutes.primaryRoute;
 

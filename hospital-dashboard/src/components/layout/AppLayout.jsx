@@ -5,36 +5,16 @@ import NotificationToast from './NotificationToast';
 
 export function AppLayout() {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        backgroundColor: 'var(--bg-primary)',
-        color: 'var(--text-primary)',
-      }}
-    >
-      {/* Top Operations Navbar */}
+    <div className="app-layout" style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <Navbar />
 
-      {/* Main Container with Sidebar + Page Viewport */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 'calc(100vh - 64px)' }}>
+      <div className="app-main-layout" style={{ flex: 1 }}>
         <Sidebar />
-
-        <main
-          style={{
-            flex: 1,
-            padding: '24px 32px',
-            backgroundColor: 'var(--bg-primary)',
-            overflowY: 'auto',
-            maxHeight: 'calc(100vh - 64px)',
-          }}
-        >
+        <main className="app-main-content" style={{ backgroundColor: 'var(--bg-primary)' }}>
           <Outlet />
         </main>
       </div>
 
-      {/* Real-time Floating Notification Toasts */}
       <NotificationToast />
     </div>
   );

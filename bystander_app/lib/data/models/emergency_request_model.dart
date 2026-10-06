@@ -24,6 +24,7 @@ class EmergencyRequestModel extends EmergencyRequest {
     super.fallbackCount,
     super.currentETA,
     super.backendRoute,
+    super.backendHospitalRoute,
     super.backendAlternativeRoutes,
     super.routeId,
     super.routeReason,
@@ -95,6 +96,22 @@ class EmergencyRequestModel extends EmergencyRequest {
       }).where((l) => l.latitude != 0.0 && l.longitude != 0.0).toList();
     }
 
+    List<LocationData>? backendHospitalRoute;
+    final hospitalRouteObj = json['hospitalRoute'];
+    if (hospitalRouteObj is Map<String, dynamic> &&
+        hospitalRouteObj['waypoints'] is List) {
+      backendHospitalRoute = (hospitalRouteObj['waypoints'] as List<dynamic>)
+          .whereType<Map<String, dynamic>>()
+          .map((wp) => LocationData(
+                latitude: (wp['latitude'] as num?)?.toDouble() ?? 0.0,
+                longitude: (wp['longitude'] as num?)?.toDouble() ?? 0.0,
+                timestamp: DateTime.now(),
+              ))
+          .where((location) =>
+              location.latitude != 0.0 && location.longitude != 0.0)
+          .toList();
+    }
+
     List<List<LocationData>>? backendAlternativeRoutes;
     final altObj = json['alternativeRoutes'];
     if (altObj is List) {
@@ -148,6 +165,7 @@ class EmergencyRequestModel extends EmergencyRequest {
       fallbackCount: fallbackAttempts,
       currentETA: etaVal,
       backendRoute: backendRoute,
+      backendHospitalRoute: backendHospitalRoute,
       backendAlternativeRoutes: backendAlternativeRoutes,
       routeId: routeId,
       routeReason: routeReason,
@@ -184,6 +202,7 @@ class EmergencyRequestModel extends EmergencyRequest {
       fallbackCount: entity.fallbackCount,
       currentETA: entity.currentETA,
       backendRoute: entity.backendRoute,
+      backendHospitalRoute: entity.backendHospitalRoute,
       backendAlternativeRoutes: entity.backendAlternativeRoutes,
       routeId: entity.routeId,
       routeReason: entity.routeReason,
@@ -220,6 +239,7 @@ class EmergencyRequestModel extends EmergencyRequest {
     int? fallbackCount,
     int? currentETA,
     List<LocationData>? backendRoute,
+    List<LocationData>? backendHospitalRoute,
     List<List<LocationData>>? backendAlternativeRoutes,
     String? routeId,
     String? routeReason,
@@ -253,6 +273,7 @@ class EmergencyRequestModel extends EmergencyRequest {
       fallbackCount: fallbackCount ?? this.fallbackCount,
       currentETA: currentETA ?? this.currentETA,
       backendRoute: backendRoute ?? this.backendRoute,
+      backendHospitalRoute: backendHospitalRoute ?? this.backendHospitalRoute,
       backendAlternativeRoutes: backendAlternativeRoutes ?? this.backendAlternativeRoutes,
       routeId: routeId ?? this.routeId,
       routeReason: routeReason ?? this.routeReason,
@@ -293,6 +314,24 @@ class EmergencyRequestModel extends EmergencyRequest {
       'fallbackCount': fallbackCount,
       'attempts': fallbackCount,
       if (currentETA != null) 'currentETA': currentETA,
+      if (backendRoute != null)
+        'route': {
+          'waypoints': backendRoute!
+              .map((location) => {
+                    'latitude': location.latitude,
+                    'longitude': location.longitude,
+                  })
+              .toList(),
+        },
+      if (backendHospitalRoute != null)
+        'hospitalRoute': {
+          'waypoints': backendHospitalRoute!
+              .map((location) => {
+                    'latitude': location.latitude,
+                    'longitude': location.longitude,
+                  })
+              .toList(),
+        },
       if (trafficLevel != null) 'trafficLevel': trafficLevel,
       if (roadStatus != null) 'roadStatus': roadStatus,
       if (blockedSegments != null && blockedSegments!.isNotEmpty) 'blockedSegments': blockedSegments,

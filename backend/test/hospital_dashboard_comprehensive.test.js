@@ -243,6 +243,8 @@ test('Phase 8 — Hospital Dashboard Comprehensive Test Suite', async (t) => {
     assert.equal(detailsRes.status, 200);
     assert.ok(detailsRes.data.request.requestId);
     assert.ok(Array.isArray(detailsRes.data.request.attempts));
+    assert.ok(detailsRes.data.request.destinationHospital.location.latitude);
+    assert.ok(detailsRes.data.request.destinationHospital.location.longitude);
 
     // Query /emergency/:requestId/attempts endpoint
     const attemptsRes = await request(baseUrl, 'GET', `/emergency/${activeCase.requestId}/attempts`, null, adminToken);
@@ -259,6 +261,8 @@ test('Phase 8 — Hospital Dashboard Comprehensive Test Suite', async (t) => {
     assert.equal(trackRes.status, 200);
     assert.ok(trackRes.data.tracking);
     assert.ok(trackRes.data.tracking.requestId);
+    assert.ok(trackRes.data.tracking.destinationHospital.location.latitude);
+    assert.ok(trackRes.data.tracking.destinationHospital.location.longitude);
   });
 
   await t.test('7. Telemetry Provenance in Location Updates', async () => {

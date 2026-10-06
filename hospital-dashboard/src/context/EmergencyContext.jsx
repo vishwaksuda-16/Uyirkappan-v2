@@ -37,6 +37,11 @@ export function EmergencyProvider({ children }) {
   const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const processedEventIds = useRef(new Set());
+  const emergenciesRef = useRef(emergencies);
+
+  useEffect(() => {
+    emergenciesRef.current = emergencies;
+  }, [emergencies]);
 
   const addNotification = useCallback((type, title, message, details = null) => {
     const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -251,6 +256,11 @@ export function EmergencyProvider({ children }) {
       if (!payload || !payload.requestId) return;
       const { requestId, status, ambulanceId } = payload;
 
+      if (status === 'COMPLETED') {
+        handleEmergencyCompleted(payload);
+        return;
+      }
+
       setEmergencies((prev) =>
         prev.map((item) => {
           if (item.requestId === requestId) {
@@ -370,21 +380,21 @@ export function EmergencyProvider({ children }) {
       if (!data || !data.requestId) return;
       const completedTime = data.completedAt || new Date().toISOString();
 
-      // Find the emergency to archive
-      setEmergencies((prev) => {
-        const found = prev.find((e) => e.requestId === data.requestId);
-        if (found) {
-          const finishedCase = {
-            ...found,
-            status: 'COMPLETED',
-            completedAt: completedTime,
-            updatedAt: completedTime,
-          };
-          setCompletedEmergencies((ch) => [finishedCase, ...ch]);
-        }
-        // Remove completed emergency from incoming list
-        return prev.filter((e) => e.requestId !== data.requestId);
-      });
+      const found = emergenciesRef.current.find((e) => e.requestId === data.requestId);
+      if (found) {
+        const finishedCase = {
+          ...found,
+          status: 'COMPLETED',
+          completedAt: completedTime,
+          updatedAt: completedTime,
+        };
+        setCompletedEmergencies((previous) => (
+          previous.some((item) => item.requestId === data.requestId)
+            ? previous
+            : [finishedCase, ...previous]
+        ));
+      }
+      setEmergencies((previous) => previous.filter((e) => e.requestId !== data.requestId));
 
       // Leave emergency socket room
       socketService.leaveEmergencyRoom(data.requestId);

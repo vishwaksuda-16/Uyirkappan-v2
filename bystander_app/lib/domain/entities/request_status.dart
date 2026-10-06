@@ -19,8 +19,8 @@ enum RequestStatus {
   ),
   assigned(
     code: 'ASSIGNED',
-    userMessage: 'Ambulance assigned, waiting for driver confirmation',
-    userDescription: 'Emergency unit assigned. Waiting for driver to confirm response...',
+    userMessage: 'Finding a driver...',
+    userDescription: 'Your request has been sent to a nearby driver. Waiting for the driver to accept...',
     color: AppColors.statusAssigned,
     isActive: true,
   ),
@@ -110,6 +110,14 @@ enum RequestStatus {
       this == RequestStatus.assigned ||
       this == RequestStatus.accepted ||
       this == RequestStatus.enRouteToPatient;
+
+  bool get hasConfirmedDriver =>
+      this == RequestStatus.accepted ||
+      this == RequestStatus.enRouteToPatient ||
+      this == RequestStatus.arrivedAtPatient ||
+      this == RequestStatus.patientOnboard ||
+      this == RequestStatus.enRouteToHospital ||
+      this == RequestStatus.arrivedAtHospital;
 
   static RequestStatus fromCode(String code) {
     final normalized = code.trim().toUpperCase();

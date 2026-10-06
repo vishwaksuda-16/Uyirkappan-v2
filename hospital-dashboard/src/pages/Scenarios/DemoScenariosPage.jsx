@@ -28,6 +28,8 @@ export function DemoScenariosPage() {
   const [running, setRunning] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
   const [fallbackSteps, setFallbackSteps] = useState(null);
+  const [pickupLatitude, setPickupLatitude] = useState('');
+  const [pickupLongitude, setPickupLongitude] = useState('');
 
   useEffect(() => {
     fetchScenarios();
@@ -49,6 +51,18 @@ export function DemoScenariosPage() {
 
   const activeScenario = scenarios[selectedScenarioIndex] || null;
 
+  const readPickupLocation = () => {
+    const latitude = Number(pickupLatitude);
+    const longitude = Number(pickupLongitude);
+    if (!pickupLatitude.trim() || !pickupLongitude.trim() ||
+        !Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+        latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      setActionMessage({ type: 'error', text: 'Enter a valid pinned latitude and longitude before running a demo.' });
+      return null;
+    }
+    return { latitude, longitude };
+  };
+
   const handleLoadScenario = async () => {
     if (!activeScenario) return;
     try {
@@ -65,11 +79,13 @@ export function DemoScenariosPage() {
 
   const handleStartSimulation = async () => {
     if (!activeScenario) return;
+    const pickupLocation = readPickupLocation();
+    if (!pickupLocation) return;
     try {
       setRunning(true);
       const res = await axios.post(
         `${API_BASE}/scenarios/${activeScenario.id}/run`,
-        {},
+        { pickupLocation },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       setActionMessage({
@@ -84,11 +100,13 @@ export function DemoScenariosPage() {
   };
 
   const handleFullDemo = async () => {
+    const pickupLocation = readPickupLocation();
+    if (!pickupLocation) return;
     try {
       setRunning(true);
       const res = await axios.post(
         `${API_BASE}/scenarios/full-demo`,
-        {},
+        { pickupLocation },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       setActionMessage({
@@ -104,17 +122,19 @@ export function DemoScenariosPage() {
   };
 
   const handleFallbackDemo = async () => {
+    const pickupLocation = readPickupLocation();
+    if (!pickupLocation) return;
     try {
       setRunning(true);
       const res = await axios.post(
         `${API_BASE}/scenarios/fallback-demo`,
-        {},
+        { pickupLocation },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
       setFallbackSteps(res.data.sequence || []);
       setActionMessage({
         type: 'success',
-        text: 'Cascading fallback sequence executed across 4 dataset units.',
+        text: `Location-based cascading fallback simulated across ${res.data.sequence?.length || 0} available units.`,
       });
     } catch (err) {
       setActionMessage({ type: 'error', text: err.response?.data?.message || 'Fallback demo error.' });
@@ -217,6 +237,56 @@ export function DemoScenariosPage() {
         </div>
       </div>
 
+      <section
+        aria-label="Pinned location for demo"
+        style={{
+          display: 'flex',
+          alignItems: 'end',
+          gap: '12px',
+          flexWrap: 'wrap',
+          padding: '16px',
+          marginBottom: '20px',
+          borderRadius: 'var(--radius-lg)',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-default)',
+        }}
+      >
+        <div style={{ flex: '1 1 220px' }}>
+          <strong style={{ display: 'block', color: 'var(--text-primary)', fontSize: '13px' }}>
+            PINNED LOCATION FOR THIS RUN
+          </strong>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+            Dispatch, routes, and hospital choice use these coordinates; curated sample locations are not substituted.
+          </span>
+        </div>
+        <label style={{ display: 'grid', gap: '5px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+          Latitude
+          <input
+            type="number"
+            step="any"
+            min="-90"
+            max="90"
+            value={pickupLatitude}
+            onChange={(event) => setPickupLatitude(event.target.value)}
+            placeholder="e.g. 13.0418"
+            style={{ padding: '9px 10px', borderRadius: '6px', border: '1px solid var(--border-default)' }}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: '5px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+          Longitude
+          <input
+            type="number"
+            step="any"
+            min="-180"
+            max="180"
+            value={pickupLongitude}
+            onChange={(event) => setPickupLongitude(event.target.value)}
+            placeholder="e.g. 80.2341"
+            style={{ padding: '9px 10px', borderRadius: '6px', border: '1px solid var(--border-default)' }}
+          />
+        </label>
+      </section>
+
       {/* Action Notification Banner */}
       {actionMessage && (
         <div
@@ -250,7 +320,7 @@ export function DemoScenariosPage() {
       {fallbackSteps && (
         <div
           style={{
-            backgroundColor: '#111827',
+            backgroundColor: 'var(--bg-card)',
             border: '1px solid #f59e0b',
             borderRadius: 'var(--radius-lg)',
             padding: '18px',
@@ -271,7 +341,7 @@ export function DemoScenariosPage() {
                 <div
                   key={idx}
                   style={{
-                    backgroundColor: '#1f2937',
+                    backgroundColor: 'var(--bg-surface)',
                     border: `1px solid ${isAccepted ? '#10b981' : isTimeout ? '#f59e0b' : '#ef4444'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '12px',

@@ -2,6 +2,12 @@ const { Router } = require('express');
 const authMiddleware = require('../middleware/auth.middleware');
 const { requireRole } = require('../middleware/role.middleware');
 
+function getDriverAssignmentStatus(assignment, request) {
+  if (assignment.status === 'PENDING') return 'PENDING';
+  if (request.status === 'DRIVER_ACCEPTED') return 'ACCEPTED';
+  return request.status || assignment.status;
+}
+
 module.exports = function buildDriverRoutes(ctx) {
   const router = Router();
   const store = ctx.store;
@@ -49,7 +55,7 @@ module.exports = function buildDriverRoutes(ctx) {
         ambulanceId: assignment.ambulanceId,
         driverId: req.user.id || assignment.driverId,
         attemptNumber: assignment.attemptNumber,
-        status: assignment.status,
+        status: getDriverAssignmentStatus(assignment, request),
         estimatedETA: assignment.estimatedETA,
         assignedAt: assignment.assignedAt,
         expiresAt: assignment.expiresAt,
@@ -92,3 +98,5 @@ module.exports = function buildDriverRoutes(ctx) {
 
   return router;
 };
+
+module.exports.getDriverAssignmentStatus = getDriverAssignmentStatus;

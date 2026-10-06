@@ -30,7 +30,8 @@ export function QuickResourceOverview({ resources = {}, onOpenModal }) {
 
   return (
     <div
-      style={{
+    className="resource-overview"
+    style={{
         backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-md)',
@@ -54,7 +55,7 @@ export function QuickResourceOverview({ resources = {}, onOpenModal }) {
             fontWeight: 700,
           }}
         >
-          Hospital Capacity Status
+          Available resources
         </span>
 
         <button
@@ -68,23 +69,23 @@ export function QuickResourceOverview({ resources = {}, onOpenModal }) {
             color: 'var(--status-info)',
             padding: '3px 8px',
             borderRadius: 'var(--radius-sm)',
-            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            backgroundColor: 'rgba(45, 212, 191, 0.12)',
             border: '1px solid var(--status-info-border)',
             transition: 'background-color 0.15s ease',
           }}
           onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.2)')
+            (e.currentTarget.style.backgroundColor = 'rgba(45, 212, 191, 0.2)')
           }
           onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.1)')
+            (e.currentTarget.style.backgroundColor = 'rgba(45, 212, 191, 0.12)')
           }
         >
           <Settings2 size={13} />
-          <span>Update Counts</span>
+          <span>Edit</span>
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+      <div className="resource-overview-items" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '10px' }}>
         {items.map((item, idx) => {
           const Icon = item.icon;
           return (

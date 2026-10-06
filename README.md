@@ -6,7 +6,41 @@ UyirKappan is a unified emergency response platform that connects **Bystanders, 
 
 The platform enables emergency request creation, intelligent ambulance selection, driver assignment, cascading fallback, live ambulance tracking, dynamic ETA updates, hospital coordination, and complete emergency lifecycle management.
 
-> **Project Scope:** UyirKappan is a software-based prototype and simulation platform designed to demonstrate intelligent emergency coordination. It does not replace existing emergency services such as 108.
+> **Project Scope:** UyirKappan is a software-based prototype and simulation platform designed to demonstrate intelligent emergency coordination.
+
+---
+
+## Run all modules with Docker Compose
+
+Requirements: Docker Desktop with Docker Compose enabled.
+
+From the repository root, start the backend, hospital dashboard, research portal, bystander web app, and driver web app:
+
+```sh
+docker compose up --build
+```
+
+Open the apps in your host browser:
+
+| Module | URL |
+| --- | --- |
+| Backend API | http://localhost:5000 |
+| Hospital dashboard | http://localhost:5173 |
+| Research portal | http://localhost:5174 |
+| Bystander app | http://localhost:8081 |
+| Driver app | http://localhost:8082 |
+
+The driver container listens on port 8080 internally and is published to host port 8082 by default to avoid conflicts with services such as Jenkins. Set `DRIVER_APP_PORT=8080` if host port 8080 is available. The backend uses the persistent MongoDB service by default. Its data remains in the `mongodb-data` volume after containers are recreated; `docker compose down -v` removes that data. Copy `.env.example` to `.env` to customize `MONGODB_URI` or `JWT_SECRET`. For local backend execution, `backend/.env` can independently configure the MongoDB connection. The bystander container uses Flutter's `web-server` device, while the driver container serves an optimized Flutter release build through Nginx. No browser is run inside Docker. The default backend JWT secret is for local development only.
+
+For Flutter web, backend URLs are compile-time Dart defines (the defaults in each app's environment example target the host browser):
+
+```sh
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:5000/api --dart-define=SOCKET_URL=http://localhost:5000
+```
+
+The Dockerfiles separate dependency installation from runtime files, so source-only changes can reuse the dependency layers. Node builds also use BuildKit's npm cache. The first Flutter image build still needs to download the Flutter SDK image; subsequent builds reuse it.
+
+Stop the services with `docker compose down`.
 
 ---
 
@@ -281,7 +315,7 @@ JWT-based authentication is used for secure API access.
 
 #### Data Storage
 
-MongoDB is used for persistent storage. The backend also supports an in-memory data store for development and simulation.
+MongoDB is used for persistent storage by default. Set `DATA_STORE_MODE=memory` to use an isolated in-memory data store for development and tests.
 
 **Verification:** ✅ 10 / 10 backend tests passed
 
@@ -580,6 +614,24 @@ Hospital APIs additionally verify that the authenticated hospital staff member b
 | `PATCH` | `/api/hospitals/:id/resources` | Update resources |
 | `GET` | `/api/hospitals/:id/emergency-history` | Get emergency history |
 
+### Location-based demos
+
+The scenario run, full-demo, and fallback-demo endpoints require an explicit
+`pickupLocation` object with numeric `latitude` and `longitude` values. The
+selected coordinates are used for ambulance routing and hospital selection;
+the backend does not substitute a curated scenario or default location. The
+road and traffic dataset currently covers Chennai, so the pin must be within
+2 km of a mapped road segment.
+
+```json
+{
+  "pickupLocation": {
+    "latitude": 13.0418,
+    "longitude": 80.2341
+  }
+}
+```
+
 ---
 
 ## 🗄️ Database Models
@@ -823,6 +875,8 @@ Driver 4	driver4@uyirkappan.demo
 Driver 5	driver5@uyirkappan.demo
 Hospital Staff	staff@uyirkappan.demo
 Admin	admin@uyirkappan.demo
+
+In in-memory/demo mode, dispatch scores every available dataset ambulance regardless of driver connection, so the geographically and traffic-optimal dataset vehicle can be selected. An offline driver's app cannot receive that offer; it will time out and trigger fallback dispatch. In MongoDB mode, dispatch only targets drivers with an active app connection. Drivers should sign in and keep the badge at **CONNECTED** to receive offers; the app also polls for pending offers in case a socket event is missed.
 
 Hospital Staff:
 

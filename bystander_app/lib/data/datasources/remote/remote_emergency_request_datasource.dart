@@ -52,16 +52,10 @@ class RemoteEmergencyRequestDataSource implements EmergencyRequestDataSource {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> body = jsonDecode(response.body) as Map<String, dynamic>;
-        // Backend create response is a flat partial object:
-        // { success, requestId, status, assignmentId, ambulanceId, eta }
-        // It does NOT contain pickupLocation, requesterId, emergencyType, etc.
-        // Build a complete model by merging backend response fields with submitted request data.
-        final created = request.copyWith(
-          requestId: body['requestId'] as String? ?? request.requestId,
-          status: RequestStatus.fromCode(body['status'] as String? ?? 'SEARCHING'),
-          assignedAmbulanceId: body['ambulanceId'] as String?,
-          currentETA: (body['eta'] as num?)?.toInt(),
-        );
+        final created = EmergencyRequestModel.fromJson({
+          ...request.toJson(),
+          ...body,
+        });
         socketService?.joinEmergencyRoom(created.requestId);
         return created;
       } else {

@@ -1,6 +1,7 @@
 const { test, describe, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const express = require('express');
 
 const { datasetLoader } = require('../src/data/datasetLoader');
 const { MemoryStore } = require('../src/data/memoryStore');
@@ -14,6 +15,7 @@ const AssignmentService = require('../src/services/assignment.service');
 const EmergencyService = require('../src/services/emergency.service');
 const AmbulanceService = require('../src/services/ambulance.service');
 const EtaService = require('../src/services/eta.service');
+const buildScenarioRoutes = require('../src/routes/scenario.routes');
 
 describe('UYIRKAPPAN — 20 Critical Dataset-Driven & Road Routing Tests', () => {
   let store;
@@ -162,6 +164,50 @@ describe('UYIRKAPPAN — 20 Critical Dataset-Driven & Road Routing Tests', () =>
       `Selected ambulance must differ based on proximity: North=${ambNorth.ambulance.id}, South=${ambSouth.ambulance.id}`);
   });
 
+  test('TEST 7A: Dispatch routes to the exact pinned location and does not use a default outside coverage', async () => {
+    const pinnedLocation = { latitude: 13.0418, longitude: 80.2341 };
+    const invalidRequest = await ctx.emergencyService.createEmergency({ id: 'USER-001' }, {
+      emergencyType: 'CARDIAC',
+      victimCount: 1,
+      pickupLocation: { latitude: 91, longitude: 80.2341 },
+    });
+    assert.equal(invalidRequest.ok, false, 'Invalid pins must be rejected instead of being normalized to a default');
+
+    const selection = await ctx.dispatchService.findBestAmbulance({
+      requestId: 'REQ-PINNED-TNAGAR',
+      emergencyType: 'CARDIAC',
+      victimCount: 1,
+      pickupLocation: pinnedLocation,
+    }, []);
+
+    assert.ok(selection);
+    assert.deepEqual(
+      selection.route.waypoints[selection.route.waypoints.length - 1],
+      {
+        nodeId: 'DEST_GPS',
+        name: 'Patient Pickup Location',
+        ...pinnedLocation,
+      },
+      'Road routing must terminate at the exact chosen pin',
+    );
+
+    const outsideCoverage = await ctx.dispatchService.findBestAmbulance({
+      requestId: 'REQ-OUTSIDE-DATASET',
+      emergencyType: 'CARDIAC',
+      victimCount: 1,
+      pickupLocation: { latitude: 40.7128, longitude: -74.0060 },
+    }, []);
+    assert.equal(outsideCoverage, null, 'Do not substitute the default/dataset location when no units cover the pin');
+    const previousRequestCount = store.emergencyRequests.length;
+    const rejectedOutsidePin = await ctx.emergencyService.createEmergency({ id: 'USER-001' }, {
+      emergencyType: 'CARDIAC',
+      victimCount: 1,
+      pickupLocation: { latitude: 40.7128, longitude: -74.0060 },
+    });
+    assert.equal(rejectedOutsidePin.ok, false, 'A pin outside road coverage must be rejected explicitly');
+    assert.equal(store.emergencyRequests.length, previousRequestCount, 'Rejected pins must not create an emergency at another location');
+  });
+
   // TEST 8: Routing does not use N1-N5
   test('TEST 8: Routing does not use N1-N5', () => {
     const allNodeIds = Array.from(matcher.graphService.getGraph().nodes.keys());
@@ -233,13 +279,26 @@ describe('UYIRKAPPAN — 20 Critical Dataset-Driven & Road Routing Tests', () =>
 
   // TEST 15: Rejected ambulance triggers fallback
   test('TEST 15: Rejected ambulance triggers fallback', async () => {
+    const pinnedLocation = { latitude: 13.0418, longitude: 80.2341 };
     const req = await ctx.emergencyService.createEmergency({ id: 'USER-001' }, {
       emergencyType: 'CARDIAC',
       victimCount: 1,
-      pickupLocation: { latitude: 13.2128, longitude: 80.3180 },
+      pickupLocation: pinnedLocation,
+      isManualOverride: true,
     });
     assert.equal(req.status, 'ASSIGNED');
+    assert.deepEqual(req.pickupLocation, pinnedLocation, 'The API result must preserve the exact incident pin');
+    assert.equal(req.isManualOverride, true, 'The API result must retain manual-pin provenance');
     const firstAmb = req.ambulanceId;
+    const firstAssignment = await store.getAssignmentById(req.assignmentId);
+    assert.deepEqual(
+      firstAssignment.route.waypoints[firstAssignment.route.waypoints.length - 1],
+      {
+        nodeId: 'DEST_GPS',
+        name: 'Patient Pickup Location',
+        ...pinnedLocation,
+      },
+    );
 
     // Simulate driver rejection
     const assignment = await store.getAssignmentById(req.assignmentId);
@@ -252,6 +311,28 @@ describe('UYIRKAPPAN — 20 Critical Dataset-Driven & Road Routing Tests', () =>
     assert.ok(attempts.length >= 2, 'Must have at least 2 attempts recorded');
     assert.equal(attempts[0].response, 'REJECTED');
     assert.notEqual(attempts[1].ambulanceId, firstAmb, 'Fallback must select a different ambulance');
+    assert.deepEqual((await store.getEmergencyByRequestId(req.requestId)).pickupLocation, pinnedLocation);
+
+    const secondAssignment = store.getAssignmentsForRequest(req.requestId)
+      .find((candidate) => candidate.attemptNumber === 2);
+    const secondDriver = { id: (await store.getAmbulanceById(secondAssignment.ambulanceId)).driverId };
+    const secondRejection = await ctx.assignmentService.rejectAssignment(secondAssignment.id, secondDriver);
+    assert.equal(secondRejection.ok, true);
+    assert.deepEqual(
+      secondAssignment.route.waypoints[secondAssignment.route.waypoints.length - 1],
+      {
+        nodeId: 'DEST_GPS',
+        name: 'Patient Pickup Location',
+        ...pinnedLocation,
+      },
+      'Cascading fallback must route to the original exact pin',
+    );
+
+    const allAttempts = await store.getAttemptsByRequestId(req.requestId);
+    assert.equal(allAttempts.length, 3, 'A second rejection must produce a third dispatch attempt');
+    assert.equal(new Set(allAttempts.map((attempt) => attempt.ambulanceId)).size, allAttempts.length,
+      'Every fallback attempt must exclude all previously attempted ambulances');
+    assert.deepEqual((await store.getEmergencyByRequestId(req.requestId)).pickupLocation, pinnedLocation);
   });
 
   // TEST 16: Timed-out ambulance triggers fallback
@@ -377,5 +458,73 @@ describe('UYIRKAPPAN — 20 Critical Dataset-Driven & Road Routing Tests', () =>
 
     const completedReq = await store.getEmergencyByRequestId(req.requestId);
     assert.equal(completedReq.status, 'COMPLETED', 'Emergency request status must be COMPLETED');
+  });
+
+  test('TEST 21: Cancellation stops the assigned driver and updates every participant', async () => {
+    ctx.emittedEvents = [];
+    const requester = { id: 'USER-CANCEL-001', role: 'BYSTANDER' };
+    const req = await ctx.emergencyService.createEmergency(requester, {
+      emergencyType: 'ACCIDENT',
+      victimCount: 1,
+      pickupLocation: { latitude: 13.0418, longitude: 80.2341 },
+    });
+    const ambulance = await store.getAmbulanceById(req.ambulanceId);
+    assert.equal(ambulance.status, 'ASSIGNED', 'Ambulance must be assigned before cancellation');
+    ctx.emittedEvents = [];
+
+    const result = await ctx.emergencyService.cancelEmergency(req.requestId, requester);
+
+    assert.equal(result.ok, true);
+    assert.equal((await store.getEmergencyByRequestId(req.requestId)).status, 'CANCELLED');
+    assert.equal((await store.getAssignmentById(req.assignmentId)).status, 'CANCELLED');
+    assert.equal((await store.getAmbulanceById(req.ambulanceId)).status, 'AVAILABLE');
+    assert.ok(ctx.emittedEvents.some(e =>
+      e.room === `driver:${req.ambulanceId}` &&
+      e.event === 'ASSIGNMENT_CANCELLED' &&
+      e.data.requestId === req.requestId
+    ), 'Assigned driver must receive an assignment cancellation');
+    assert.ok(ctx.emittedEvents.some(e =>
+      e.room === `user:${requester.id}` && e.event === 'STATUS_UPDATED' && e.data.status === 'CANCELLED'
+    ), 'Requester must receive cancellation status');
+    assert.ok(ctx.emittedEvents.some(e =>
+      e.room === `hospital:${req.destinationHospitalId}` && e.event === 'STATUS_UPDATED' && e.data.status === 'CANCELLED'
+    ), 'Destination hospital must receive cancellation status');
+  });
+
+  test('TEST 22: Fallback demo requires and routes to its supplied pin', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/scenarios', buildScenarioRoutes(ctx));
+    const server = app.listen(0);
+    await new Promise(resolve => server.once('listening', resolve));
+    const baseUrl = `http://127.0.0.1:${server.address().port}/api/scenarios/fallback-demo`;
+
+    try {
+      const missingPinResponse = await fetch(baseUrl, { method: 'POST' });
+      assert.equal(missingPinResponse.status, 400, 'Fallback demo must not substitute a default pin');
+
+      const pinnedLocation = { latitude: 13.0418, longitude: 80.2341 };
+      const response = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pickupLocation: pinnedLocation }),
+      });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.ok(result.sequence.length > 0);
+      assert.deepEqual(
+        result.sequence[0].route.waypoints[result.sequence[0].route.waypoints.length - 1],
+        {
+          nodeId: 'DEST_GPS',
+          name: 'Patient Pickup Location',
+          ...pinnedLocation,
+        },
+        'Fallback candidate route must terminate at the supplied pin',
+      );
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve());
+      });
+    }
   });
 });

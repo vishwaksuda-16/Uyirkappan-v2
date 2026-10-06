@@ -144,6 +144,44 @@ void main() {
       expect(find.text('DESTINATION HOSPITAL'), findsOneWidget);
     });
 
+    testWidgets('Pending driver assignment hides ambulance and driver details', (tester) async {
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await emergencyController.submitEmergencyRequest(
+        emergencyLocation: LocationData(
+          latitude: 13.0827,
+          longitude: 80.2707,
+          timestamp: DateTime.now(),
+        ),
+      );
+      fakeDataSource.emit(
+        fakeDataSource.stored!.copyWith(
+          status: RequestStatus.assigned,
+          assignedAmbulanceId: 'AMB-PENDING-01',
+          assignedDriverName: 'Pending Driver',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            emergencyController: emergencyController,
+            locationController: locationController,
+            simulationController: simulationController,
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Finding a driver...'), findsWidgets);
+      expect(find.text('AMB-PENDING-01'), findsNothing);
+      expect(find.textContaining('Pending Driver'), findsNothing);
+    });
+
     testWidgets('Driver Accepted and En Route state renders on 360x640 compact screen with zero RenderFlex overflow', (tester) async {
       tester.view.physicalSize = const Size(360, 640);
       tester.view.devicePixelRatio = 1.0;

@@ -73,7 +73,14 @@ export class EmergencyTrackingService {
       | undefined;
 
     if (eta.estimatedMinutes === 0) {
-      status = "ARRIVED_AT_PATIENT";
+      const currentState =
+        this.trackingService.getTrackingState(
+          locationUpdate.requestId
+        );
+      status =
+        currentState?.status === "EN_ROUTE_TO_HOSPITAL"
+          ? "ARRIVED_AT_HOSPITAL"
+          : "ARRIVED_AT_PATIENT";
 
       this.trackingService.updateStatus(
         locationUpdate.requestId,

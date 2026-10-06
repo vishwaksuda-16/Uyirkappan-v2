@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import useAuth from '../../hooks/useAuth';
 import useEmergency from '../../hooks/useEmergency';
 import useHospitalResources from '../../hooks/useHospitalResources';
 import hospitalApi from '../../services/hospitalApi';
 import OperationalMetrics from '../../components/dashboard/OperationalMetrics';
-import CriticalEmergencyBanner from '../../components/dashboard/CriticalEmergencyBanner';
 import IncomingEmergencyList from '../../components/dashboard/IncomingEmergencyList';
 import QuickResourceOverview from '../../components/dashboard/QuickResourceOverview';
-import AmbulanceMap from '../../components/tracking/AmbulanceMap';
-import DynamicEtaWidget from '../../components/tracking/DynamicEtaWidget';
 import ResourceUpdateModal from '../../components/resources/ResourceUpdateModal';
-import { Radio, RefreshCw, Building2, AlertTriangle, Settings2 } from 'lucide-react';
+import { AlertTriangle, Building2, Radio, RefreshCw, Settings2 } from 'lucide-react';
+
+const terminalStatuses = new Set(['COMPLETED', 'CANCELLED', 'RESOLVED', 'NO_AMBULANCE_AVAILABLE']);
 
 export function DashboardPage() {
   const { user, hospital, switchHospital } = useAuth();
@@ -22,333 +21,140 @@ export function DashboardPage() {
     updateResources,
     isSaving: isSavingResources,
   } = useHospitalResources(user?.hospitalId);
-
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
 
   useEffect(() => {
-    hospitalApi.getHospitals().then((list) => {
-      if (Array.isArray(list) && list.length > 0) {
-        setAllHospitals(list);
-      }
-    }).catch((e) => {
-      if (import.meta.env?.DEV) console.warn('Failed to load all hospitals:', e);
-    });
+    hospitalApi.getHospitals()
+      .then((list) => {
+        if (Array.isArray(list) && list.length > 0) setAllHospitals(list);
+      })
+      .catch((e) => {
+        if (import.meta.env?.DEV) console.warn('Failed to load hospitals:', e);
+      });
   }, []);
 
   useEffect(() => {
-    if (user?.hospitalId) {
-      hospitalApi.getHospital(user.hospitalId).then((data) => {
+    if (!user?.hospitalId) return;
+    hospitalApi.getHospital(user.hospitalId)
+      .then((data) => {
         if (data?.hospital) setHospitalInfo(data.hospital);
-      }).catch(() => {});
-    }
+      })
+      .catch((e) => {
+        if (import.meta.env?.DEV) console.warn('Failed to load hospital details:', e);
+      });
   }, [user?.hospitalId]);
 
-
-  // Active non-completed cases
-  const activeEmergencies = emergencies.filter((e) => e.status !== 'COMPLETED');
-
-  // Most critical/urgent inbound case (e.g. lowest ETA or Cardiac/Trauma)
-  const topPriorityCase = activeEmergencies[0] || null;
-
-  // Resource threshold check for low-resource warning (Checklist Section 17)
-  const isLowResources =
-    (resources.icuBeds !== undefined && resources.icuBeds <= 1) ||
-    (resources.ventilators !== undefined && resources.ventilators <= 1) ||
-    (resources.generalBeds !== undefined && resources.generalBeds <= 3);
+  const activeEmergencies = emergencies.filter((emergency) => !terminalStatuses.has(emergency.status));
+  const lowResources = [
+    resources.icuBeds !== undefined && resources.icuBeds <= 1 && 'ICU beds',
+    resources.ventilators !== undefined && resources.ventilators <= 1 && 'ventilators',
+    resources.generalBeds !== undefined && resources.generalBeds <= 3 && 'general beds',
+  ].filter(Boolean);
+  const hospitalName = hospitalInfo?.name || hospital?.name || user?.hospitalName || 'Hospital overview';
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Top Operations Header: Hospital Name & Facility Verification */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px',
-          marginBottom: '20px',
-          paddingBottom: '16px',
-          borderBottom: '1px solid var(--border-default)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div className="hospital-dashboard">
+      <section className="dashboard-header" aria-label="Hospital overview">
+        <div className="dashboard-heading">
           <div
             style={{
-              width: '42px',
-              height: '42px',
+              width: 42,
+              height: 42,
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid var(--status-critical-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--status-critical)',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+              color: 'var(--status-info)',
+              background: 'var(--status-info-bg)',
+              border: '1px solid var(--status-info-border)',
             }}
           >
-            <Building2 size={24} />
+            <Building2 size={21} />
           </div>
-          <div>
-            <h1
-              style={{
-                fontSize: '22px',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                margin: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {hospitalInfo?.name || hospital?.name || user?.hospitalName || 'Emergency Care Center'}
-            </h1>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Hospital Facility ID: <strong style={{ color: 'var(--status-info)' }}>{user?.hospitalId || 'H001'}</strong> • {hospitalInfo?.area || hospital?.area || 'Trauma & Emergency Center'}
-            </div>
+          <div className="dashboard-heading-copy">
+            <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.25, fontWeight: 750 }}>{hospitalName}</h1>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
+              Emergency care overview
+              {hospitalInfo?.area || hospital?.area ? ` · ${hospitalInfo?.area || hospital?.area}` : ''}
+            </p>
           </div>
         </div>
 
-        {/* Header Controls: Hospital Switcher, Dataset Status, Resource Update */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          {/* Phase 3 & 4: Live Hospital Selector across ALL 30 hospitals */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Switch Hospital:
-            </span>
-            <select
-              id="hospital-switcher-select"
-              value={user?.hospitalId || 'H001'}
-              onChange={(e) => switchHospital(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                outline: 'none',
-                maxWidth: '280px',
-              }}
-            >
-              {allHospitals.length > 0 ? (
-                allHospitals.map((h) => (
-                  <option key={h.id} value={h.id} style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                    {h.id} — {h.name}
-                  </option>
-                ))
-              ) : (
-                <option value={user?.hospitalId || 'H001'}>
-                  {user?.hospitalId || 'H001'} — Current Facility
-                </option>
-              )}
-            </select>
-          </div>
-
-          <button
-            onClick={() => setIsResourceModalOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
+        <div className="dashboard-header-controls">
+          <label htmlFor="hospital-switcher-select" className="sr-only">Select hospital</label>
+          <select
+            id="hospital-switcher-select"
+            className="dashboard-hospital-select"
+            value={user?.hospitalId || 'H001'}
+            onChange={(event) => switchHospital(event.target.value)}
           >
+            {allHospitals.length > 0 ? allHospitals.map((item) => (
+              <option key={item.id} value={item.id}>{item.id} · {item.name}</option>
+            )) : (
+              <option value={user?.hospitalId || 'H001'}>{user?.hospitalId || 'H001'} · Current hospital</option>
+            )}
+          </select>
+          <button className="dashboard-action" onClick={() => setIsResourceModalOpen(true)}>
             <Settings2 size={15} />
-            <span>Update Resources</span>
+            <span>Update resources</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      {/* Low-Resource Warning Alert Banner (Checklist Section 17) */}
-      {isLowResources && (
-        <div
-          style={{
-            backgroundColor: 'var(--status-warning-bg)',
-            border: '1px solid var(--status-warning-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 18px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertTriangle size={18} style={{ color: 'var(--status-warning)', flexShrink: 0 }} />
-            <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-              <strong style={{ color: 'var(--status-warning)' }}>Low Hospital Resource Warning:</strong> Critical capacity threshold reached.
-              {resources.icuBeds <= 1 && ' ICU beds are near depletion.'}
-              {resources.ventilators <= 1 && ' Mechanical ventilators are critically limited.'}
-              {resources.generalBeds <= 3 && ' General ward beds are low.'}
-              {' Please update available resources to inform Intelligent Dispatch.'}
-            </div>
-          </div>
+      {lowResources.length > 0 && (
+        <div className="dashboard-warning" role="status">
+          <AlertTriangle size={17} style={{ color: 'var(--status-warning)', flexShrink: 0 }} />
+          <span>Low availability: {lowResources.join(', ')}. Update your resource counts if they have changed.</span>
           <button
+            className="dashboard-action"
+            style={{ minHeight: 34, marginLeft: 'auto', flexShrink: 0 }}
             onClick={() => setIsResourceModalOpen(true)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--status-warning)',
-              color: '#000000',
-              fontWeight: 700,
-              fontSize: '12px',
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-            }}
           >
-            Update Resources
+            Update
           </button>
         </div>
       )}
 
-      {/* Top Operations Metrics Grid */}
       <OperationalMetrics
         emergencies={emergencies}
-        resources={resources}
-        onManageResources={() => setIsResourceModalOpen(true)}
       />
 
-      {/* Prominent Critical Inbound Case Banner */}
-      {topPriorityCase && <CriticalEmergencyBanner emergency={topPriorityCase} />}
-
-      {/* Main Command Center Layout Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
-          gap: '24px',
-          alignItems: 'start',
-        }}
-      >
-        {/* Left Column: Real-Time Incoming Emergency Feed */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingBottom: '8px',
-              borderBottom: '1px solid var(--border-default)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Radio size={16} style={{ color: 'var(--status-critical)' }} className="animate-pulse" />
-              <h2
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  letterSpacing: '0.02em',
-                  color: 'var(--text-primary)',
-                  margin: 0,
-                  textTransform: 'uppercase',
-                }}
+      <div className="dashboard-content-grid">
+        <section className="dashboard-panel" aria-labelledby="inbound-heading">
+          <div className="dashboard-section-heading">
+            <h2 id="inbound-heading" className="dashboard-section-title">
+              <Radio size={17} style={{ color: 'var(--status-info)' }} />
+              Inbound emergencies
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="dashboard-count">{activeEmergencies.length} active</span>
+              <button
+                className="dashboard-action"
+                style={{ minHeight: 34, padding: '0 10px' }}
+                onClick={refreshEmergencies}
+                aria-label="Refresh inbound emergencies"
+                title="Refresh"
               >
-                Inbound Emergency Feed
-              </h2>
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-default)',
-                }}
-              >
-                {activeEmergencies.length} Active
-              </span>
+                <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+              </button>
             </div>
-
-            <button
-              onClick={refreshEmergencies}
-              title="Refresh feed"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-              <span>Sync</span>
-            </button>
           </div>
-
           <IncomingEmergencyList
-            emergencies={emergencies}
+            emergencies={activeEmergencies}
             isLoading={isLoading}
             error={error}
             onRetry={refreshEmergencies}
           />
-        </div>
+        </section>
 
-        {/* Right Column: Live Ambulance Radar, Dynamic ETA & Resource Quick Status */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Tracking Radar Section */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div
-              style={{
-                fontSize: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'var(--text-secondary)',
-                fontWeight: 700,
-              }}
-            >
-              Live Ambulance Telemetry
-            </div>
-
-            {topPriorityCase ? (
-              <>
-                <AmbulanceMap emergency={topPriorityCase} height="320px" />
-                <DynamicEtaWidget
-                  eta={topPriorityCase.eta}
-                  initialEta={topPriorityCase.initialEta}
-                  trafficCondition={topPriorityCase.trafficCondition}
-                  updatedAt={topPriorityCase.updatedAt}
-                />
-              </>
-            ) : (
-              <div
-                style={{
-                  height: '240px',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px dashed var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-muted)',
-                  fontSize: '13px',
-                }}
-              >
-                No active ambulances to display on tracking radar.
-              </div>
-            )}
-          </div>
-
-          {/* Secondary Hospital Resource Glance */}
+        <section aria-label="Hospital resources">
           <QuickResourceOverview
             resources={resources}
             onOpenModal={() => setIsResourceModalOpen(true)}
           />
-        </div>
+        </section>
       </div>
 
-      {/* Resource Update Modal Dialog */}
       <ResourceUpdateModal
         isOpen={isResourceModalOpen}
         onClose={() => setIsResourceModalOpen(false)}
@@ -356,7 +162,6 @@ export function DashboardPage() {
         onSave={updateResources}
         isSaving={isSavingResources}
       />
-
     </div>
   );
 }

@@ -72,7 +72,7 @@ export function EmergencyDetailHeader({ emergency }) {
               alignItems: 'center',
               gap: '6px',
               padding: '4px 10px',
-              backgroundColor: 'rgba(56, 189, 248, 0.12)',
+              backgroundColor: 'var(--status-info-bg)',
               border: '1px solid var(--status-info-border)',
               borderRadius: 'var(--radius-sm)',
               fontSize: '12px',

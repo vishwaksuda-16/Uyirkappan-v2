@@ -52,7 +52,6 @@ class LocationController extends ChangeNotifier {
       if (!serviceEnabled) {
         _status = LocationFetchStatus.serviceDisabled;
         _errorMessage = 'Location services are disabled on your device.';
-        _useFallbackLocation();
         notifyListeners();
         return;
       }
@@ -63,7 +62,6 @@ class LocationController extends ChangeNotifier {
         if (permission == LocationPermission.denied) {
           _status = LocationFetchStatus.permissionDenied;
           _errorMessage = 'Location permissions were denied.';
-          _useFallbackLocation();
           notifyListeners();
           return;
         }
@@ -72,7 +70,6 @@ class LocationController extends ChangeNotifier {
       if (permission == LocationPermission.deniedForever) {
         _status = LocationFetchStatus.permissionDeniedForever;
         _errorMessage = 'Location permissions are permanently denied. Please enable them in device settings.';
-        _useFallbackLocation();
         notifyListeners();
         return;
       }
@@ -107,7 +104,6 @@ class LocationController extends ChangeNotifier {
     } catch (e) {
       _status = LocationFetchStatus.error;
       _errorMessage = 'Could not acquire precise GPS: $e';
-      _useFallbackLocation();
       notifyListeners();
     }
   }
@@ -168,15 +164,4 @@ class LocationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _useFallbackLocation() {
-    _deviceLocation ??= LocationData(
-      latitude: AppConstants.defaultLatitude,
-      longitude: AppConstants.defaultLongitude,
-      accuracy: AppConstants.defaultAccuracy,
-      timestamp: DateTime.now(),
-      readableAddress: 'Anna Salai, Central Chennai',
-      isManualOverride: false,
-    );
-    _emergencyLocation ??= _deviceLocation;
-  }
 }

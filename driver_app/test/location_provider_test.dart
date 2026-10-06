@@ -353,6 +353,7 @@ void main() {
       expect(emitted.isNotEmpty, isTrue);
       expect(emitted.first.latitude, 13.0827);
       expect(emitted.first.provider, 'simulation');
+      expect(emitted.first.speed, 22.5);
 
       await sub.cancel();
       await simProvider.stop();

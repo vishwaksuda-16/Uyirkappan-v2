@@ -113,6 +113,12 @@ class EmergencyController extends ChangeNotifier {
   }
 
   void _handleSocketEvent(SocketEvent event) {
+    final eventRequestId = event.data['requestId']?.toString();
+    if (_activeRequest != null &&
+        eventRequestId != null &&
+        eventRequestId != _activeRequest!.requestId) {
+      return;
+    }
     String notif = '';
     switch (event.event) {
       case 'EMERGENCY_CREATED':
@@ -120,20 +126,24 @@ class EmergencyController extends ChangeNotifier {
         notif = 'Emergency created: $reqId';
         break;
       case 'AMBULANCE_ASSIGNED':
-        final ambId = event.data['ambulanceId'] ?? event.data['assignedAmbulanceId'] ?? 'AMB';
-        final eta = event.data['estimatedETA'] ?? event.data['eta'] ?? event.data['currentETA'] ?? '5';
-        notif = 'Ambulance $ambId assigned. ETA: $eta minutes';
+        final ambId = event.data['ambulanceId'] ?? event.data['assignedAmbulanceId'];
+        final eta = event.data['estimatedETA'] ?? event.data['eta'] ?? event.data['currentETA'];
+        notif = ambId == null
+            ? 'Ambulance assignment update received'
+            : 'Ambulance $ambId assigned${eta == null ? '' : '. ETA: $eta minutes'}';
         if (_activeRequest != null) {
           final etaNum = (eta is num) ? eta.toInt() : int.tryParse(eta.toString());
           final bRoute = _parseRouteWaypoints(event.data['route']);
+          final bHospitalRoute = _parseRouteWaypoints(event.data['hospitalRoute']);
           final bAlt = _parseAltRoutes(event.data['alternativeRoutes']);
           final rId = event.data['route'] is Map ? (event.data['route']['routeId'] as String?) : null;
           final rReason = event.data['decisionReason'] as String? ?? (event.data['route'] is Map ? event.data['route']['decisionReason'] as String? : null);
           _activeRequest = _activeRequest!.copyWith(
-            assignedAmbulanceId: ambId.toString(),
+            assignedAmbulanceId: ambId?.toString() ?? _activeRequest!.assignedAmbulanceId,
             status: RequestStatus.assigned,
             currentETA: etaNum ?? _activeRequest!.currentETA,
             backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendHospitalRoute: bHospitalRoute ?? _activeRequest!.backendHospitalRoute,
             backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
             routeId: rId ?? _activeRequest!.routeId,
             routeReason: rReason ?? _activeRequest!.routeReason,
@@ -149,9 +159,17 @@ class EmergencyController extends ChangeNotifier {
         notif = 'Route updated. Dynamic ETA: ${etaMin ?? '--'} minutes';
         if (_activeRequest != null) {
           final etaNum = (etaMin is num) ? etaMin.toInt() : int.tryParse(etaMin?.toString() ?? '');
+          final isHospitalLeg =
+              _activeRequest!.status == RequestStatus.patientOnboard ||
+                  _activeRequest!.status == RequestStatus.enRouteToHospital;
           _activeRequest = _activeRequest!.copyWith(
             currentETA: etaNum ?? _activeRequest!.currentETA,
-            backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendRoute: isHospitalLeg
+                ? _activeRequest!.backendRoute
+                : bRoute ?? _activeRequest!.backendRoute,
+            backendHospitalRoute: isHospitalLeg
+                ? bRoute ?? _activeRequest!.backendHospitalRoute
+                : _activeRequest!.backendHospitalRoute,
             backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
             routeId: rId ?? _activeRequest!.routeId,
             routeReason: rReason ?? _activeRequest!.routeReason,
@@ -162,6 +180,8 @@ class EmergencyController extends ChangeNotifier {
         notif = 'Driver accepted. En route to pickup';
         if (_activeRequest != null) {
           _activeRequest = _activeRequest!.copyWith(
+            assignedAmbulanceId: event.data['ambulanceId'] as String? ??
+                _activeRequest!.assignedAmbulanceId,
             status: RequestStatus.accepted,
           );
         }
@@ -174,7 +194,10 @@ class EmergencyController extends ChangeNotifier {
         if (etaMin != null) {
           notif = 'ETA updated: $etaMin minutes';
           if (_activeRequest != null) {
-            _activeRequest = _activeRequest!.copyWith(currentETA: (etaMin as num).toInt());
+            final parsedEta = etaMin is num ? etaMin.toInt() : int.tryParse(etaMin.toString());
+            if (parsedEta != null) {
+              _activeRequest = _activeRequest!.copyWith(currentETA: parsedEta);
+            }
             notifyListeners();
           }
         }
@@ -189,8 +212,11 @@ class EmergencyController extends ChangeNotifier {
             completedAt: newStatus == RequestStatus.completed ? DateTime.now() : _activeRequest!.completedAt,
           );
           if (newStatus == RequestStatus.completed) {
-            _submissionState = SubmissionState.completed;
+            _finishActiveRequest();
+          } else if (newStatus == RequestStatus.cancelled) {
+            _submissionState = SubmissionState.cancelled;
             repository.clearActivePersistedRequest();
+            _unsubscribe();
           }
         }
         break;
@@ -205,23 +231,27 @@ class EmergencyController extends ChangeNotifier {
         }
         break;
       case 'AMBULANCE_REASSIGNED':
-        final ambId = event.data['ambulanceId'] ?? event.data['assignedAmbulanceId'] ?? 'AMB';
-        final eta = event.data['estimatedETA'] ?? event.data['eta'] ?? event.data['currentETA'] ?? '4';
+        final ambId = event.data['ambulanceId'] ?? event.data['assignedAmbulanceId'];
+        final eta = event.data['estimatedETA'] ?? event.data['eta'] ?? event.data['currentETA'];
         final attempts = event.data['attemptNumber'] ?? event.data['attempts'];
-        notif = 'Ambulance reassigned to $ambId. New ETA: $eta minutes';
+        notif = ambId == null
+            ? 'Ambulance reassignment update received'
+            : 'Ambulance reassigned to $ambId${eta == null ? '' : '. New ETA: $eta minutes'}';
         if (_activeRequest != null) {
-          final etaNum = (eta is num) ? eta.toInt() : int.tryParse(eta.toString());
+          final etaNum = eta is num ? eta.toInt() : int.tryParse(eta?.toString() ?? '');
           final attemptNum = (attempts is num) ? attempts.toInt() : int.tryParse(attempts?.toString() ?? '');
           final bRoute = _parseRouteWaypoints(event.data['route']);
+          final bHospitalRoute = _parseRouteWaypoints(event.data['hospitalRoute']);
           final bAlt = _parseAltRoutes(event.data['alternativeRoutes']);
           final rId = event.data['route'] is Map ? (event.data['route']['routeId'] as String?) : null;
           final rReason = event.data['decisionReason'] as String? ?? (event.data['route'] is Map ? event.data['route']['decisionReason'] as String? : null);
           _activeRequest = _activeRequest!.copyWith(
-            assignedAmbulanceId: ambId.toString(),
+            assignedAmbulanceId: ambId?.toString() ?? _activeRequest!.assignedAmbulanceId,
             status: RequestStatus.assigned,
             currentETA: etaNum ?? _activeRequest!.currentETA,
             fallbackCount: attemptNum != null ? (attemptNum - 1) : (_activeRequest!.fallbackCount + 1),
             backendRoute: bRoute ?? _activeRequest!.backendRoute,
+            backendHospitalRoute: bHospitalRoute ?? _activeRequest!.backendHospitalRoute,
             backendAlternativeRoutes: bAlt ?? _activeRequest!.backendAlternativeRoutes,
             routeId: rId ?? _activeRequest!.routeId,
             routeReason: rReason ?? _activeRequest!.routeReason,
@@ -238,14 +268,7 @@ class EmergencyController extends ChangeNotifier {
         break;
       case 'EMERGENCY_COMPLETED':
         notif = 'Emergency response completed';
-        if (_activeRequest != null) {
-          _activeRequest = _activeRequest!.copyWith(
-            status: RequestStatus.completed,
-            completedAt: DateTime.now(),
-          );
-          _submissionState = SubmissionState.completed;
-          repository.clearActivePersistedRequest();
-        }
+        _finishActiveRequest();
         break;
       default:
         notif = '${event.event}: ${event.data}';
@@ -350,6 +373,16 @@ class EmergencyController extends ChangeNotifier {
 
     try {
       final created = await repository.submitEmergencyRequest(draft);
+      final samePickupLocation =
+          (created.emergencyLocation.latitude - emergencyLocation.latitude).abs() < 0.000001 &&
+          (created.emergencyLocation.longitude - emergencyLocation.longitude).abs() < 0.000001;
+      if (!samePickupLocation) {
+        throw const ServerFailure(
+          'The backend returned a different pickup location. The emergency was not shown as dispatched.',
+          409,
+          'PICKUP_LOCATION_MISMATCH',
+        );
+      }
       _activeRequest = created;
       _submissionState = SubmissionState.active;
       _subscribeToUpdates(created.requestId);
@@ -463,9 +496,11 @@ class EmergencyController extends ChangeNotifier {
       (updatedRequest) {
         _activeRequest = updatedRequest;
         if (updatedRequest.status == RequestStatus.completed) {
-          _submissionState = SubmissionState.completed;
+          _finishActiveRequest();
         } else if (updatedRequest.status == RequestStatus.cancelled) {
           _submissionState = SubmissionState.cancelled;
+          repository.clearActivePersistedRequest();
+          _unsubscribe();
         }
         notifyListeners();
       },
@@ -473,6 +508,14 @@ class EmergencyController extends ChangeNotifier {
         // Keep active state on transient stream errors
       },
     );
+  }
+
+  void _finishActiveRequest() {
+    _activeRequest = null;
+    _submissionState = SubmissionState.idle;
+    _recommendedHospitalDestination = null;
+    unawaited(repository.clearActivePersistedRequest());
+    _unsubscribe();
   }
 
   void _unsubscribe() {

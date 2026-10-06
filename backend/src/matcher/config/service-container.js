@@ -179,7 +179,9 @@ function createServiceContainer(io) {
     const simulationDemoService = new simulation_demo_service_js_1.SimulationDemoService({
         fallbackOrchestratorService,
         liveTrackingOrchestratorService,
-        virtualMovementService
+        virtualMovementService,
+        nearestNodeService,
+        dijkstraService
     });
     /*
      * ==========================================================

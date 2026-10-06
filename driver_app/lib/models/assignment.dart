@@ -203,6 +203,9 @@ class Assignment {
         : (reqMap != null && reqMap['destinationHospital'] is Map<String, dynamic>)
             ? reqMap['destinationHospital'] as Map<String, dynamic>
             : null;
+    final rawStatus = json['status'] == 'PENDING'
+        ? json['status']
+        : reqMap?['status'] ?? json['status'];
 
     return Assignment(
       assignmentId: assignmentId ?? 'ASN-$requestId',
@@ -220,8 +223,8 @@ class Assignment {
           ? DateTime.tryParse(json['expiresAt'] as String)
           : null,
       response: json['response'] as String?,
-      status: json['status'] != null
-          ? DriverLifecycleState.fromString(json['status'] as String)
+      status: rawStatus != null
+          ? DriverLifecycleState.fromString(rawStatus as String)
           : DriverLifecycleState.assignmentReceived,
       distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 4.2,
       etaMinutes: eta,

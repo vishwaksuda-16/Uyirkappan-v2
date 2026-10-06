@@ -1,0 +1,47 @@
+.git
+.github
+.idea
+.vscode
+
+**/node_modules
+**/.dart_tool
+**/build
+**/coverage
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+**/.env
+**/.env.*
+!**/.env.example
+
+**/npm-debug.log*
+**/yarn-debug.log*
+**/pnpm-debug.log*
+**/Thumbs.db
+**/.DS_Store
+
+# Limit root-context images to only the backend, research portal, dashboard
+# source imported by the portal, and routing datasets.
+/*
+!/backend
+!/Datasets
+!/research-portal
+!/hospital-dashboard
+!/backend/**
+!/Datasets/**
+!/research-portal/**
+!/hospital-dashboard/src
+!/hospital-dashboard/src/**
+
+# Re-apply exclusions after the root-context allow-list.
+**/node_modules
+**/.dart_tool
+**/build
+**/coverage
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.env
+**/.env.*
+**/npm-debug.log*
+**/yarn-debug.log*
+**/pnpm-debug.log*

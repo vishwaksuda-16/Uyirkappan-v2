@@ -186,7 +186,7 @@ void main() {
       trackingDataSource.dispose();
     });
 
-    testWidgets('displays assigned unit with live Real GPS badge and driver contact', (tester) async {
+    testWidgets('displays unit only after driver accepts with live Real GPS badge and contact', (tester) async {
       await emergencyController.submitEmergencyRequest(
         emergencyLocation: LocationData(
           latitude: 13.0827,
@@ -197,7 +197,7 @@ void main() {
 
       // Simulate assignment with Real GPS telemetry
       final assignedModel = requestDataSource.stored!.copyWith(
-        status: RequestStatus.assigned,
+        status: RequestStatus.accepted,
         assignedAmbulanceId: 'AMB-CH-007',
         assignedDriverName: 'Murugan Pillai',
         driverPhone: '+91 98400 11223',
@@ -211,7 +211,7 @@ void main() {
         latitude: 13.0850,
         longitude: 80.2720,
         timestamp: DateTime.now(),
-        status: RequestStatus.assigned,
+        status: RequestStatus.accepted,
         provider: 'real',
         gpsSource: 'DEVICE',
         isSimulated: false,
@@ -236,6 +236,52 @@ void main() {
       expect(find.text('+91 98400 11223'), findsOneWidget);
       expect(find.text('Estimated Arrival Time: 4 minutes'), findsOneWidget);
       expect(find.text('OPEN LIVE MAP TRACKING'), findsOneWidget);
+    });
+
+    testWidgets('hides pending ambulance details until the driver accepts', (tester) async {
+      await emergencyController.submitEmergencyRequest(
+        emergencyLocation: LocationData(
+          latitude: 13.0827,
+          longitude: 80.2707,
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      final pendingModel = requestDataSource.stored!.copyWith(
+        status: RequestStatus.assigned,
+        assignedAmbulanceId: 'AMB-PENDING-01',
+        assignedDriverName: 'Pending Driver',
+        driverPhone: '+91 98400 11223',
+      );
+      requestDataSource.emitUpdate(pendingModel);
+      trackingDataSource.telemetry = TrackingModel(
+        ambulanceId: 'AMB-PENDING-01',
+        requestId: pendingModel.requestId,
+        latitude: 13.0850,
+        longitude: 80.2720,
+        timestamp: DateTime.now(),
+        status: RequestStatus.assigned,
+        provider: 'real',
+        gpsSource: 'DEVICE',
+        isSimulated: false,
+        driverName: 'Pending Driver',
+        driverPhone: '+91 98400 11223',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RequestStatusScreen(
+            emergencyController: emergencyController,
+            trackingRepository: trackingRepository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Finding a driver...'), findsOneWidget);
+      expect(find.text('AMB-PENDING-01'), findsNothing);
+      expect(find.text('Pending Driver'), findsNothing);
+      expect(find.text('OPEN LIVE MAP TRACKING'), findsNothing);
     });
 
     testWidgets('displays cascading fallback notification and preserves requestId', (tester) async {

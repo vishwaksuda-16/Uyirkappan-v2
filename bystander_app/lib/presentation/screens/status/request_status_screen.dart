@@ -166,8 +166,7 @@ class _RequestStatusScreenState extends State<RequestStatusScreen> {
 
             final status = request.status;
             final isFallbackActive = request.fallbackCount > 0 && status == RequestStatus.searching;
-            final isAssignedOrEnRoute = status == RequestStatus.assigned ||
-                status == RequestStatus.accepted ||
+            final isAssignedOrEnRoute = status == RequestStatus.accepted ||
                 status == RequestStatus.enRouteToPatient ||
                 status == RequestStatus.arrivedAtPatient ||
                 status == RequestStatus.patientOnboard ||

@@ -75,7 +75,7 @@ export function HistoryPage() {
               Emergency Response History
             </h1>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              {hospital?.name || user?.hospitalName} • Comprehensive Audit Log & Post-Incident Dossiers
+              {hospital?.name || user?.hospitalName} · Completed emergency records
             </div>
           </div>
         </div>

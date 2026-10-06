@@ -4,6 +4,8 @@ import {
 } from "../dispatch/dispatch.types.js";
 
 import { Location } from "../dispatch/dispatch.types.js";
+import { Route } from "../routing/route.types.js";
+const { datasetLoader } = require("../../../data/datasetLoader.js");
 
 export class SimulationDemoService {
 
@@ -342,22 +344,57 @@ export class SimulationDemoService {
        * ========================================
        */
 
+      const hospitalRoute =
+        this.findHospitalRoute(request.pickupLocation);
+      const hospitalLocation =
+        hospitalRoute.hospital.location;
+
       this.services
         .liveTrackingOrchestratorService
         .startHospitalJourney(
           requestId
         );
 
+      await this.services
+        .liveTrackingOrchestratorService
+        .processLocationUpdate(
+          {
+            ambulanceId: ambulance.ambulanceId,
+            requestId,
+            latitude: request.pickupLocation.latitude,
+            longitude: request.pickupLocation.longitude,
+            speed: 0,
+            heading: 0,
+            timestamp: new Date()
+          },
+          hospitalLocation
+        );
 
-      await this.delay(1500);
-
+      await this.services.virtualMovementService.moveAlongRoute(
+        ambulance.ambulanceId,
+        requestId,
+        hospitalRoute.route,
+        hospitalLocation,
+        {
+          onLocationUpdate: async (
+            locationUpdate: any,
+            destination: Location
+          ) => {
+            await this.services
+              .liveTrackingOrchestratorService
+              .processLocationUpdate(
+                locationUpdate,
+                destination
+              );
+          }
+        }
+      );
 
       /*
        * ========================================
        * 13. HOSPITAL ARRIVAL
        * ========================================
        */
-
       this.services
         .liveTrackingOrchestratorService
         .hospitalArrived(
@@ -392,8 +429,50 @@ export class SimulationDemoService {
       this.running = false;
 
     }
-
   }
+
+  private findHospitalRoute(startLocation: Location): {
+    hospital: { id: string; name: string; location: Location };
+    route: Route;
+  } {
+    if (!datasetLoader.loaded) {
+      datasetLoader.loadAll();
+    }
+
+    const hospitals = datasetLoader.hospitals as Array<{
+      id: string;
+      name: string;
+      location: Location;
+    }>;
+    if (hospitals.length === 0) {
+      throw new Error("No hospital destinations are available in the dataset");
+    }
+
+    const startNode =
+      this.services.nearestNodeService.findNearestNode(
+        startLocation
+      );
+    const routes = hospitals.map((hospital) => {
+      const hospitalNode =
+        this.services.nearestNodeService.findNearestNode(
+          hospital.location
+        );
+      const route =
+        this.services.dijkstraService.findShortestRoute(
+          startNode.nodeId,
+          hospitalNode.nodeId
+        );
+      return { hospital, route };
+    });
+
+    routes.sort(
+      (left, right) =>
+        left.route.travelTimeMinutes - right.route.travelTimeMinutes
+    );
+
+    return routes[0];
+  }
+
 
 
   stop(): void {

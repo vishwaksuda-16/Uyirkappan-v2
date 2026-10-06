@@ -165,66 +165,40 @@ class HospitalService {
     const pickupLocation = emergencyRequest.pickupLocation;
 
     // 1. Filter by operational status
-    let eligible = hospitals.filter(h => h.operationalStatus !== 'SUSPENDED');
-    if (eligible.length === 0) eligible = hospitals;
+    const eligible = hospitals.filter(h => h.operationalStatus !== 'SUSPENDED');
 
-    // 2. Filter according to medical capability
+    // 2. A specialist emergency must go to a hospital with the matching capability.
     const normType = String(emergencyType || '').toUpperCase();
     let capabilityFiltered = eligible;
     if (normType === 'CARDIAC' || normType === 'STROKE') {
-      const matches = eligible.filter(h => h.cardiacCapable);
-      if (matches.length > 0) capabilityFiltered = matches;
+      capabilityFiltered = eligible.filter(h => h.cardiacCapable);
     } else if (normType === 'TRAUMA' || normType === 'ACCIDENT') {
-      const matches = eligible.filter(h => h.traumaCapable);
-      if (matches.length > 0) capabilityFiltered = matches;
+      capabilityFiltered = eligible.filter(h => h.traumaCapable);
     }
 
-    // 3. Bed and resource availability check
-    let resourceFiltered = capabilityFiltered.filter(h => {
+    // 3. Prefer hospitals with resources available; do not select a non-capable
+    // hospital just because it has more beds.
+    const resourceFiltered = capabilityFiltered.filter(h => {
       const icu = h.resources?.icuBeds || 0;
       const gen = h.resources?.generalBeds || 0;
       return icu > 0 || gen > 0;
     });
-    if (resourceFiltered.length === 0) resourceFiltered = capabilityFiltered;
 
-    // 4. Calculate road network travel time to each candidate
+    // 4. Rank candidates by traffic-aware road travel time from the exact pin.
     const { getMatcherServices } = require('../matcher/index');
-    let matcher = null;
-    try { matcher = getMatcherServices(); } catch (_) {}
-
+    const matcher = getMatcherServices();
     const candidates = [];
-    const { distanceKm } = require('../data/memoryStore');
 
     for (const hospital of resourceFiltered) {
-      let travelTimeMinutes = 10;
-      let distance = 4.0;
-
-      try {
-        if (matcher && pickupLocation) {
-          let route;
-          if (typeof matcher.dijkstraService.findDynamicRoute === 'function') {
-            route = matcher.dijkstraService.findDynamicRoute(pickupLocation, hospital.location);
-          } else {
-            const pNode = matcher.nearestNodeService.findNearestNode(pickupLocation);
-            const hNode = matcher.nearestNodeService.findNearestNode(hospital.location);
-            route = matcher.dijkstraService.findShortestRoute(pNode.nodeId, hNode.nodeId);
-          }
-          travelTimeMinutes = Math.max(1, Math.round(route.travelTimeMinutes));
-          distance = route.distanceKm;
-        } else if (pickupLocation) {
-          distance = Math.round(distanceKm(pickupLocation, hospital.location) * 10) / 10;
-          travelTimeMinutes = Math.max(1, Math.round((distance / 35) * 60));
-        }
-      } catch (_) {
-        if (pickupLocation) {
-          distance = Math.round(distanceKm(pickupLocation, hospital.location) * 1.3 * 10) / 10;
-          travelTimeMinutes = Math.max(1, Math.round((distance / 30) * 60));
-        }
+      if (!pickupLocation) {
+        throw new Error('Exact pickup coordinates are required to select a hospital');
       }
+      const route = matcher.dijkstraService.findDynamicRoute(pickupLocation, hospital.location);
+      const travelTimeMinutes = Math.max(1, Math.round(route.travelTimeMinutes));
+      const distance = route.distanceKm;
 
       const icuBeds = hospital.resources?.icuBeds || 0;
       const generalBeds = hospital.resources?.generalBeds || 0;
-      const score = travelTimeMinutes * 0.7 - Math.min(8, icuBeds * 1.5 + generalBeds * 0.2) * 0.3;
 
       candidates.push({
         hospitalId: hospital.id,
@@ -238,14 +212,29 @@ class HospitalService {
         generalBeds,
         cardiacCapable: hospital.cardiacCapable,
         traumaCapable: hospital.traumaCapable,
-        score,
+        score: route.travelTimeMinutes,
       });
     }
 
-    candidates.sort((a, b) => a.score - b.score);
-    const best = candidates[0] || { hospitalId: hospitals[0]?.id || 'H001', travelTimeMinutes: 10, distanceKm: 4.0, hospitalName: hospitals[0]?.name || 'Hospital' };
-    const selectedHospital = hospitals.find(h => h.id === best.hospitalId) || hospitals[0];
+    candidates.sort((a, b) =>
+      a.score - b.score ||
+      a.distanceKm - b.distanceKm ||
+      b.icuBeds - a.icuBeds ||
+      b.generalBeds - a.generalBeds
+    );
+    const best = candidates[0];
+    const selectedHospital = best ? hospitals.find(h => h.id === best.hospitalId) : null;
 
+    if (!best || !selectedHospital) {
+      return {
+        selectedHospital: null,
+        selectedHospitalId: null,
+        candidateHospitals: [],
+        selectionReason: `No operational hospital with suitable capability and resources is available for ${emergencyType || 'this emergency'}.`,
+        estimatedTravelTime: null,
+        distance: null,
+      };
+    }
     const reason = `${best.hospitalName} (${best.hospitalId}) evaluated as optimal emergency destination: ${best.travelTimeMinutes} min travel time, ${best.icuBeds} ICU beds available, matching ${emergencyType || 'general'} protocol.`;
 
     return {

@@ -10,6 +10,11 @@ class EmergencyController {
     return res.status(201).json({
       success: true,
       requestId: result.requestId,
+      pickupLocation: {
+        ...result.pickupLocation,
+        isManualOverride: result.isManualOverride,
+      },
+      isManualOverride: result.isManualOverride,
       status: result.status,
       assignmentId: result.assignmentId,
       ambulanceId: result.ambulanceId,
@@ -21,6 +26,7 @@ class EmergencyController {
       eta: result.eta,
       decisionReason: result.decisionReason,
       route: result.route,
+      hospitalRoute: result.hospitalRoute,
       alternativeRoutes: result.alternativeRoutes,
       cost: result.cost,
       score: result.score,
@@ -91,6 +97,9 @@ class EmergencyController {
     const ambulance = request.assignedAmbulanceId
       ? await this.store.getAmbulanceById(request.assignedAmbulanceId)
       : null;
+    const destinationHospital = request.destinationHospitalId
+      ? await this.store.getHospitalById(request.destinationHospitalId)
+      : null;
     return res.json({
       success: true,
       tracking: {
@@ -98,8 +107,24 @@ class EmergencyController {
         ambulanceId: ambulance ? ambulance.id : null,
         location: ambulance ? ambulance.currentLocation : null,
         eta: request.currentETA,
+        distanceKm: request.currentDistanceKm,
+        speedKmH: ambulance?.currentLocation?.speed ?? ambulance?.currentSpeed,
+        headingDegrees: ambulance?.currentLocation?.heading ?? ambulance?.currentHeading,
+        provider: ambulance?.currentLocation?.provider,
+        gpsSource: ambulance?.currentLocation?.gpsSource,
+        isSimulated: ambulance?.currentLocation?.isSimulated,
+        accuracy: ambulance?.currentLocation?.accuracy,
+        timestamp: ambulance?.currentLocation?.timestamp,
         status: request.status,
         route: request.route || null,
+        hospitalRoute: request.hospitalRoute || null,
+        destinationHospital: destinationHospital
+          ? {
+              id: destinationHospital.id,
+              name: destinationHospital.name,
+              location: destinationHospital.location,
+            }
+          : null,
         alternativeRoutes: request.alternativeRoutes || [],
         candidateRoutes: request.candidateRoutes || [],
         decisionReason: request.routeReason || null,
@@ -110,6 +135,9 @@ class EmergencyController {
   async serialize(request) {
     const attempts = await this.store.getAttemptsByRequestId(request.requestId);
     const ambulance = request.assignedAmbulanceId ? await this.store.getAmbulanceById(request.assignedAmbulanceId) : null;
+    const destinationHospital = request.destinationHospitalId
+      ? await this.store.getHospitalById(request.destinationHospitalId)
+      : null;
     const { datasetLoader } = require('../data/datasetLoader');
     if (!datasetLoader.loaded) datasetLoader.loadAll();
     const driver = ambulance?.driverId
@@ -122,6 +150,13 @@ class EmergencyController {
       victimCount: request.victimCount,
       pickupLocation: request.pickupLocation,
       destinationHospitalId: request.destinationHospitalId,
+      destinationHospital: destinationHospital
+        ? {
+            id: destinationHospital.id,
+            name: destinationHospital.name,
+            location: destinationHospital.location,
+          }
+        : null,
       assignedAmbulanceId: request.assignedAmbulanceId,
       ambulanceId: request.assignedAmbulanceId,
       driverId: ambulance?.driverId || null,
@@ -131,6 +166,7 @@ class EmergencyController {
       status: request.status,
       eta: request.currentETA,
       route: request.route || null,
+      hospitalRoute: request.hospitalRoute || null,
       alternativeRoutes: request.alternativeRoutes || [],
       candidateRoutes: request.candidateRoutes || [],
       decisionReason: request.routeReason || null,

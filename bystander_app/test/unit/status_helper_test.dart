@@ -36,5 +36,10 @@ void main() {
       expect(RequestStatus.cancelled.isActive, isFalse);
       expect(RequestStatus.noAmbulanceAvailable.isActive, isFalse);
     });
+
+    test('completed emergencies do not retain a confirmed ambulance', () {
+      expect(RequestStatus.completed.hasConfirmedDriver, isFalse);
+      expect(RequestStatus.enRouteToHospital.hasConfirmedDriver, isTrue);
+    });
   });
 }

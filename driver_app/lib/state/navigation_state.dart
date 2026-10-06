@@ -26,6 +26,7 @@ class NavigationState extends ChangeNotifier {
   int _dynamicEtaMinutes = 0;
   String? _trafficAlert;
   String _destinationName = '';
+  String? _activeRequestId;
 
   StreamSubscription? _locationSub;
   StreamSubscription? _statusSub;
@@ -81,6 +82,7 @@ class NavigationState extends ChangeNotifier {
       _repository.startLocationTracking(
         newRoute,
         _currentLocation?.ambulanceId ?? '',
+        requestId: _activeRequestId,
       );
       notifyListeners();
     });
@@ -88,6 +90,7 @@ class NavigationState extends ChangeNotifier {
 
   void startJourneyToPatient(Assignment assignment) {
     _phase = JourneyPhase.enRouteToPatient;
+    _activeRequestId = assignment.requestId;
     if (assignment.route != null && assignment.route!.waypoints.isNotEmpty) {
       _activeRoute = assignment.route;
     } else {
@@ -118,8 +121,14 @@ class NavigationState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void startJourneyToHospital(Hospital hospital, {RouteModel? hospitalRoute, List<RouteModel>? alternativeRoutes}) {
+  void startJourneyToHospital(
+    Hospital hospital, {
+    RouteModel? hospitalRoute,
+    List<RouteModel>? alternativeRoutes,
+    String? requestId,
+  }) {
     _phase = JourneyPhase.enRouteToHospital;
+    _activeRequestId = requestId ?? _activeRequestId;
     if (hospitalRoute != null && hospitalRoute.waypoints.isNotEmpty) {
       _activeRoute = hospitalRoute;
     } else {
@@ -161,6 +170,7 @@ class NavigationState extends ChangeNotifier {
     _repository.startLocationTracking(
       _activeRoute!,
       _currentLocation?.ambulanceId ?? '',
+      requestId: _activeRequestId,
     );
     notifyListeners();
   }
@@ -168,16 +178,17 @@ class NavigationState extends ChangeNotifier {
   void _recalculateRemainingMetrics(AmbulanceLocation loc) {
     if (_activeRoute == null || _activeRoute!.waypoints.isEmpty) return;
 
-    final destLocation = _activeRoute!.waypoints.last.location;
-    final currentPos = loc.toGeoPoint;
-    final distanceToDest = GeoUtils.distanceKm(currentPos, destLocation);
-
-    _distanceRemainingKm = distanceToDest;
+    _distanceRemainingKm = _activeRoute!.distanceRemainingFrom(loc.toGeoPoint);
 
     if (loc.speed > 5.0) {
-      // dynamic ETA = (distance / speed) * 60 minutes
-      final calculatedMinutes = ((distanceToDest / loc.speed) * 60).ceil();
-      _dynamicEtaMinutes = calculatedMinutes.clamp(1, 45);
+      _dynamicEtaMinutes = ((_distanceRemainingKm / loc.speed) * 60).ceil();
+    } else if (_activeRoute!.estimatedMinutes > 0 &&
+        _activeRoute!.totalDistanceKm > 0) {
+      _dynamicEtaMinutes =
+          (_activeRoute!.estimatedMinutes *
+                  _distanceRemainingKm /
+                  _activeRoute!.totalDistanceKm)
+              .ceil();
     }
   }
 
@@ -189,6 +200,7 @@ class NavigationState extends ChangeNotifier {
   void stopNavigation() {
     _phase = JourneyPhase.none;
     _activeRoute = null;
+    _activeRequestId = null;
     _trafficAlert = null;
     _repository.stopLocationTracking();
     notifyListeners();

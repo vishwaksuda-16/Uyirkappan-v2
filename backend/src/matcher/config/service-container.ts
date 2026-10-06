@@ -336,7 +336,11 @@ export function createServiceContainer(
 
       liveTrackingOrchestratorService,
 
-      virtualMovementService
+      virtualMovementService,
+
+      nearestNodeService,
+
+      dijkstraService
 
     });
 

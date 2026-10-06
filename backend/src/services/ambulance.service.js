@@ -93,6 +93,7 @@ class AmbulanceService {
       gpsSource,
       isSimulated,
       accuracy: validAccuracy,
+      timestamp: timestamp || new Date().toISOString(),
     });
     await this.store.addLocationHistory({
       ambulanceId,
@@ -110,8 +111,13 @@ class AmbulanceService {
     let eta = null;
     if (ambulance.currentRequestId) {
       const request = await this.store.getEmergencyByRequestId(ambulance.currentRequestId);
-      eta = await this.etaService.simulateEta(request, ambulance);
-      await this.store.updateEmergencyETA(request.requestId, eta);
+      const etaResult = typeof this.etaService.getFullETA === 'function'
+        ? await this.etaService.getFullETA(request, ambulance)
+        : null;
+      eta = etaResult?.estimatedMinutes ?? await this.etaService.simulateEta(request, ambulance);
+      const routeDistanceKm = etaResult?.route?.distanceKm ??
+        etaResult?.route?.totalDistanceKm;
+      await this.store.updateEmergencyETA(request.requestId, eta, routeDistanceKm);
 
       const locPayload = {
         ambulanceId,
@@ -133,7 +139,9 @@ class AmbulanceService {
         this.notificationService.emitToRoom(`hospital:${request.destinationHospitalId}`, 'AMBULANCE_LOCATION_UPDATED', locPayload);
       }
       this.notificationService.emitToRoom(`emergency:${request.requestId}`, 'ETA_UPDATED', {
-        requestId: request.requestId, etaMinutes: eta,
+        requestId: request.requestId,
+        etaMinutes: eta,
+        ...(Number.isFinite(routeDistanceKm) ? { distanceKm: routeDistanceKm } : {}),
       });
     }
 

@@ -7,12 +7,13 @@ test('MongoDB Comprehensive Persistence & Concurrency Suite', async (t) => {
   let store;
 
   before(async () => {
-    await mongoose.connect('mongodb://localhost:27017/uyirkappan', { serverSelectionTimeoutMS: 5000 });
+    await mongoose.connect('mongodb://localhost:27017/uyirkappan_test', { serverSelectionTimeoutMS: 5000 });
     store = new MongoStore();
     await store.init();
   });
 
   after(async () => {
+    await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
   });
 
@@ -56,8 +57,23 @@ test('MongoDB Comprehensive Persistence & Concurrency Suite', async (t) => {
   });
 
   await t.test('D. RequestAttempt persistence and attempt ledger tracking', async () => {
-    const attempts = await store.getAttemptsByRequestId('UK-2026-000003');
-    assert.ok(attempts.length >= 3);
+    const testReq = await store.createEmergencyRequest('USER-001', {
+      emergencyType: 'CARDIAC',
+      victimCount: 1,
+      pickupLocation: { latitude: 13.08, longitude: 80.27 },
+    });
+    const ambulances = (await store.getAmbulances()).slice(0, 3);
+
+    for (let index = 0; index < ambulances.length; index += 1) {
+      const assignment = await store.createAssignment(testReq, ambulances[index], index + 1);
+      const response = index < 2 ? 'REJECTED' : 'ACCEPTED';
+      const transition = await store.transitionAssignmentState(assignment.id, ['PENDING'], response);
+      assert.equal(transition.ok, true);
+      await store.recordResponse(assignment, response, index < 2 ? 'DRIVER_UNAVAILABLE' : null);
+    }
+
+    const attempts = await store.getAttemptsByRequestId(testReq.requestId);
+    assert.equal(attempts.length, 3);
     assert.equal(attempts[0].response, 'REJECTED');
     assert.equal(attempts[1].response, 'REJECTED');
     assert.equal(attempts[2].response, 'ACCEPTED');
@@ -133,10 +149,12 @@ test('MongoDB Comprehensive Persistence & Concurrency Suite', async (t) => {
   });
 
   await t.test('L. Unique index prevents duplicate attempts per request and attemptNumber', async () => {
+    const existingAttempt = await mongoose.connection.db.collection('request_attempts').findOne({});
+    assert.ok(existingAttempt);
     const dupAttempt = {
       id: 'ATTEMPT-DUP-TEST',
-      requestId: 'UK-2026-000001',
-      attemptNumber: 1, // Already exists in database
+      requestId: existingAttempt.requestId,
+      attemptNumber: existingAttempt.attemptNumber,
       ambulanceId: 'AMB0001',
     };
 

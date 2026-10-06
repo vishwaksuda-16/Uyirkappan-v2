@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import '../../core/utils/geo_utils.dart';
 import '../../models/location_model.dart';
 import '../../models/route_model.dart';
@@ -64,7 +63,7 @@ class SimulatedLocationService implements LocationService {
     _requestId = requestId;
     _currentSegmentIndex = 0;
     _segmentProgress = 0.0;
-    _speedKmh = initialSpeedKmh;
+    _speedKmh = route.estimatedAverageSpeedKmh ?? initialSpeedKmh;
     _isTracking = true;
     _isPaused = false;
 
@@ -107,13 +106,7 @@ class SimulatedLocationService implements LocationService {
       return;
     }
 
-    final p1 = waypoints[_currentSegmentIndex].location;
-    final p2 = waypoints[_currentSegmentIndex + 1].location;
-    final segmentDistanceKm = GeoUtils.distanceKm(p1, p2);
-
-    // Fluctuate speed realistically (+- 3 km/h)
-    final randomJitter = (math.Random().nextDouble() - 0.5) * 6.0;
-    _speedKmh = (42.0 + randomJitter).clamp(25.0, 65.0);
+    final segmentDistanceKm = route.routeDistanceForSegmentKm(_currentSegmentIndex);
 
     // Distance covered in 1 second at current speed (accounting for multiplier)
     // distance = speed (km/h) / 3600 * multiplier
@@ -184,6 +177,7 @@ class SimulatedLocationService implements LocationService {
   @override
   void updateRoute(RouteModel newRoute) {
     _currentRoute = newRoute;
+    _speedKmh = newRoute.estimatedAverageSpeedKmh ?? _speedKmh;
     _currentSegmentIndex = 0;
     _segmentProgress = 0.0;
   }

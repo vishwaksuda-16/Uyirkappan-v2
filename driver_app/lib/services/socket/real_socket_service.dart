@@ -140,7 +140,9 @@ class RealSocketService implements SocketService {
 
     // 4. Listen for STATUS_UPDATED
     _socket!.on('STATUS_UPDATED', (data) {
-      // Handled for real-time synchronization
+      if (data is Map<String, dynamic> && data['status'] == 'CANCELLED') {
+        _handleAssignmentCancelled(data);
+      }
     });
 
     // 5. Additional navigation events

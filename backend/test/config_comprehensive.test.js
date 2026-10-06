@@ -58,12 +58,14 @@ describe('Phase 21 — Centralized Configuration & Environment Hardening Test Su
       assert.ok(Object.isFrozen(cfg.database));
       assert.ok(Object.isFrozen(cfg.traffic));
       assert.ok(Object.isFrozen(cfg.auth));
+      assert.ok(Object.isFrozen(cfg.dispatch));
       assert.ok(Object.isFrozen(cfg.routing));
 
       assert.strictEqual(cfg.server.port, 5000);
       assert.strictEqual(cfg.database.mode, 'memory');
       assert.strictEqual(cfg.database.isMemory, true);
       assert.strictEqual(cfg.database.isMongo, false);
+      assert.strictEqual(cfg.dispatch.requireOnlineDriver, false);
       assert.strictEqual(cfg.traffic.provider, 'simulation');
       assert.strictEqual(cfg.traffic.googleConfigured, false);
       assert.strictEqual(cfg.traffic.mapplsConfigured, false);
@@ -118,12 +120,17 @@ describe('Phase 21 — Centralized Configuration & Environment Hardening Test Su
     });
 
     it('allows production startup when a strong custom JWT secret is provided', () => {
-      assert.doesNotThrow(() => {
-        createConfig({
-          NODE_ENV: 'production',
-          JWT_SECRET: 'a_very_strong_and_secure_production_secret_key_12345!',
-        });
+      const cfg = createConfig({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'a_very_strong_and_secure_production_secret_key_12345!',
       });
+      assert.strictEqual(cfg.dispatch.requireOnlineDriver, true);
+    });
+
+    it('rejects invalid online-driver dispatch policy values', () => {
+      assert.throws(() => {
+        createConfig({ DISPATCH_REQUIRE_ONLINE_DRIVER: 'sometimes' });
+      }, /DISPATCH_REQUIRE_ONLINE_DRIVER must be "true" or "false"/);
     });
   });
 

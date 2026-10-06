@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import '../../core/utils/geo_utils.dart';
 import '../../models/route_model.dart';
 import 'location_provider.dart';
@@ -15,7 +14,7 @@ class SimulationLocationProvider implements LocationProvider {
   RouteModel? _currentRoute;
   int _currentSegmentIndex = 0;
   double _segmentProgress = 0.0;
-  final double _speedKmh = 40.0;
+  double get _speedKmh => _currentRoute?.estimatedAverageSpeedKmh ?? 40.0;
   double _speedMultiplier = 1.0;
   bool _isTracking = false;
   bool _isPaused = false;
@@ -143,9 +142,7 @@ class SimulationLocationProvider implements LocationProvider {
       return;
     }
 
-    final p1 = waypoints[_currentSegmentIndex].location;
-    final p2 = waypoints[_currentSegmentIndex + 1].location;
-    final segmentDistanceKm = GeoUtils.distanceKm(p1, p2);
+    final segmentDistanceKm = route.routeDistanceForSegmentKm(_currentSegmentIndex);
 
     final distanceCoveredThisTick = (_speedKmh / 3600.0) * _speedMultiplier;
     final progressIncrement = segmentDistanceKm > 0
@@ -176,14 +173,10 @@ class SimulationLocationProvider implements LocationProvider {
     final interpolatedPos = GeoUtils.interpolate(currentP1, currentP2, _segmentProgress);
     final heading = GeoUtils.calculateBearing(currentP1, currentP2);
 
-    // Realistic speed jitter (+- 2 km/h)
-    final jitter = (math.Random().nextDouble() - 0.5) * 4.0;
-    final effectiveSpeed = (_speedKmh + jitter).clamp(20.0, 70.0);
-
     _emitLocation(
       interpolatedPos.latitude,
       interpolatedPos.longitude,
-      effectiveSpeed * _speedMultiplier,
+      _speedKmh * _speedMultiplier,
       heading,
     );
   }

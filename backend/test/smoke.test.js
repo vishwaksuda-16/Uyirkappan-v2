@@ -125,10 +125,14 @@ test('end-to-end: create -> reject -> fallback -> accept -> track -> complete', 
   // status lifecycle + invalid jump
   let u = await api('PATCH', `/assignments/${a2}/status`, { status: 'EN_ROUTE_TO_PATIENT' }, driver2Token);
   assert.equal(u.data.success, true);
+  const driverProgress = await api('GET', '/driver/assignment', null, driver2Token);
+  assert.equal(driverProgress.data.assignment.status, 'EN_ROUTE_TO_PATIENT');
   const bad = await api('PATCH', `/assignments/${a2}/status`, { status: 'PATIENT_ONBOARD' }, driver2Token);
   assert.equal(bad.status, 409);
   u = await api('PATCH', `/assignments/${a2}/status`, { status: 'ARRIVED_AT_PATIENT' }, driver2Token);
   assert.equal(u.data.success, true);
+  const driverAtPatient = await api('GET', '/driver/assignment', null, driver2Token);
+  assert.equal(driverAtPatient.data.assignment.status, 'ARRIVED_AT_PATIENT');
 
   // location -> ETA + tracking
   const loc = await api('POST', `/ambulances/${ambId2}/location`, {
@@ -152,8 +156,12 @@ test('end-to-end: create -> reject -> fallback -> accept -> track -> complete', 
   // completion
   u = await api('PATCH', `/assignments/${a2}/status`, { status: 'PATIENT_ONBOARD' }, driver2Token);
   assert.equal(u.data.success, true);
+  const driverPatientOnboard = await api('GET', '/driver/assignment', null, driver2Token);
+  assert.equal(driverPatientOnboard.data.assignment.status, 'PATIENT_ONBOARD');
   u = await api('PATCH', `/assignments/${a2}/status`, { status: 'EN_ROUTE_TO_HOSPITAL' }, driver2Token);
   assert.equal(u.data.success, true);
+  const driverEnRouteToHospital = await api('GET', '/driver/assignment', null, driver2Token);
+  assert.equal(driverEnRouteToHospital.data.assignment.status, 'EN_ROUTE_TO_HOSPITAL');
   u = await api('PATCH', `/assignments/${a2}/status`, { status: 'ARRIVED_AT_HOSPITAL' }, driver2Token);
   assert.equal(u.data.success, true);
 

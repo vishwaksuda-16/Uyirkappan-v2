@@ -4,10 +4,11 @@ import { LogOut, User, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function Navbar() {
-  const { user, hospital, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <header
+      className="app-navbar"
       style={{
         height: '64px',
         backgroundColor: 'var(--bg-secondary)',
@@ -21,8 +22,7 @@ export function Navbar() {
         zIndex: 100,
       }}
     >
-      {/* Brand & Hospital Identifier */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div className="app-navbar-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <Link
           to="/dashboard"
           style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
@@ -32,12 +32,12 @@ export function Navbar() {
               width: '34px',
               height: '34px',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid var(--status-critical-border)',
+              backgroundColor: 'var(--status-info-bg)',
+              border: '1px solid var(--status-info-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--status-critical)',
+              color: 'var(--status-info)',
             }}
           >
             <Activity size={20} />
@@ -55,55 +55,19 @@ export function Navbar() {
               }}
             >
               <span>UyirKappan</span>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                  color: 'var(--status-info)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--status-info-border)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Module 3
-              </span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Hospital Emergency Operations Center
+            <div className="app-navbar-brand-subtitle" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Hospital operations
             </div>
           </div>
         </Link>
-
-        {/* Vertical Divider */}
-        <div style={{ width: '1px', height: '28px', backgroundColor: 'var(--border-default)' }} />
-
-        {/* Hospital Entity Display */}
-        <div>
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              lineHeight: 1.2,
-            }}
-          >
-            {hospital?.name || user?.hospitalName || 'Emergency Hospital Center'}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--status-success)', fontWeight: 500 }}>
-            {hospital?.tier || 'Level 1 Trauma Facility'} • ID: {user?.hospitalId || 'H01'}
-          </div>
-        </div>
       </div>
 
-      {/* Right Controls: Connection Status, Profile, Logout */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        {/* Live WebSocket Connection Pill */}
+      <div className="app-navbar-right" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <ConnectionIndicator />
 
-        {/* Staff User Capsule */}
         <div
+          className="app-navbar-user"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -119,7 +83,7 @@ export function Navbar() {
               width: '26px',
               height: '26px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(14, 165, 233, 0.15)',
+              backgroundColor: 'var(--status-info-bg)',
               color: 'var(--status-info)',
               display: 'flex',
               alignItems: 'center',
@@ -128,17 +92,13 @@ export function Navbar() {
           >
             <User size={15} />
           </div>
-          <div style={{ textAlign: 'left' }}>
+          <div className="app-navbar-user-details" style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.1 }}>
               {user?.name || 'Authorized Staff'}
-            </div>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-              {user?.badgeId || 'HOSPITAL_STAFF'} • {user?.department || 'Triage'}
             </div>
           </div>
         </div>
 
-        {/* Logout Button */}
         <button
           onClick={logout}
           title="Sign out of operations dashboard"
